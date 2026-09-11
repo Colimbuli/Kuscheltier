@@ -121,6 +121,10 @@ geraet.onVerbindung = (zustand, info) => {
     el('verbinden').textContent = 'Trennen';
     protokolliere(`verbunden mit ${info.name}`);
     uebernimm(neuerRoboAntrieb());
+    // Beim Verbinden bleibt das Tier still. Wer einen Roboter in der Hand
+    // haelt, soll nicht davon ueberrascht werden, dass er losfaehrt.
+    el('autopilot').checked = false;
+    protokolliere('Eigenleben ist aus - im Reiter "Tier" einschalten.');
     leseWerte();
   } else if (zustand === 'verbindet') {
     el('status').textContent = 'verbinde …';
