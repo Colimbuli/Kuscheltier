@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Kuscheltier</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%A7%B8%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    --grund: #14161a;
+    --feld: #1e2128;
+    --feld-hell: #282c35;
+    --rand: #343945;
+    --text: #e8eaee;
+    --gedaempft: #949bab;
+    --akzent: #5ac8a0;
+    --warn: #e2564a;
+    --balken: #5ac8a0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--grund);
+    color: var(--text);
+    font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    -webkit-text-size-adjust: 100%;
+  }
+  .huelle { max-width: 620px; margin: 0 auto; padding: 12px 16px 32px; }
+
+  header { display: flex; align-items: center; gap: 10px; padding: 8px 0 14px; }
+  .titel { font-weight: 650; font-size: 18px; margin-right: auto; }
+  .lampe { width: 10px; height: 10px; border-radius: 50%; background: var(--warn); flex: none; }
+  .lampe[data-an="true"] { background: var(--akzent); }
+  .status { font-size: 13px; color: var(--gedaempft); }
+
+  button {
+    font: inherit; color: var(--text); background: var(--feld-hell);
+    border: 1px solid var(--rand); border-radius: 10px;
+    padding: 12px 14px; min-height: 48px; cursor: pointer;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  }
+  button:active { background: #333844; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.haupt { background: var(--akzent); color: #10231c; border-color: transparent; font-weight: 600; }
+  button.notaus { background: var(--warn); color: #fff; border-color: transparent; font-weight: 700; }
+
+  .reiter { display: flex; gap: 6px; margin-bottom: 14px; }
+  .reiter button { flex: 1; border-radius: 10px; background: var(--feld); }
+  .reiter button[aria-selected="true"] { background: var(--feld-hell); border-color: var(--akzent); }
+
+  .karte { background: var(--feld); border: 1px solid var(--rand); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+  .karte h2 { margin: 0 0 12px; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--gedaempft); font-weight: 600; }
+
+  .stimmung { font-size: 30px; font-weight: 650; margin: 0 0 4px; }
+  .handlung { color: var(--gedaempft); font-size: 14px; min-height: 1.45em; }
+
+  .trieb { margin-top: 12px; }
+  .trieb-kopf { display: flex; justify-content: space-between; font-size: 13px; color: var(--gedaempft); margin-bottom: 5px; }
+  .spur { height: 9px; background: #11131799; border-radius: 5px; overflow: hidden; }
+  .fuellung { height: 100%; background: var(--balken); border-radius: 5px; transition: width .3s ease, background .3s ease; }
+  .fuellung[data-knapp="true"] { background: var(--warn); }
+
+  .gitter { display: grid; gap: 8px; }
+  .g2 { grid-template-columns: repeat(2, 1fr); }
+  .g3 { grid-template-columns: repeat(3, 1fr); }
+  .g4 { grid-template-columns: repeat(4, 1fr); }
+
+  label.schalter { display: flex; align-items: center; gap: 10px; padding: 10px 0; font-size: 15px; }
+  label.schalter input { width: 22px; height: 22px; accent-color: var(--akzent); }
+
+  .log {
+    font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: #0e1014; border: 1px solid var(--rand); border-radius: 10px;
+    padding: 10px; height: 190px; overflow-y: auto; white-space: pre; color: #b9c2d0;
+  }
+  .hinweis { font-size: 13px; color: var(--gedaempft); margin-top: 10px; }
+  .hinweis code { background: #0e1014; padding: 1px 5px; border-radius: 4px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="huelle">
+  <header>
+    <span class="lampe" id="lampe" data-an="false"></span>
+    <span class="titel">Kuscheltier</span>
+    <span class="status" id="status">Simulator</span>
+  </header>
+
+  <div class="gitter g2" style="margin-bottom:12px">
+    <button class="haupt" id="verbinden">Roboter verbinden</button>
+    <button class="notaus" id="notaus">NOT-AUS</button>
+  </div>
+
+  <div class="reiter" role="tablist">
+    <button role="tab" id="reiter-tier" aria-selected="true">Tier</button>
+    <button role="tab" id="reiter-konsole" aria-selected="false">Konsole</button>
+  </div>
+
+  <section id="blatt-tier">
+    <div class="karte">
+      <h2>Zustand</h2>
+      <p class="stimmung" id="stimmung">zufrieden</p>
+      <p class="handlung" id="handlung">ruht</p>
+      <div id="triebe"></div>
+    </div>
+
+    <div class="karte">
+      <h2>Zuwendung</h2>
+      <div class="gitter g3">
+        <button data-ereignis="fuettern">Füttern</button>
+        <button data-ereignis="streicheln">Streicheln</button>
+        <button data-ereignis="spielen">Spielen</button>
+      </div>
+      <label class="schalter">
+        <input type="checkbox" id="autopilot" checked>
+        Eigenleben (Tier handelt von selbst)
+      </label>
+    </div>
+  </section>
+
+  <section id="blatt-konsole" hidden>
+    <div class="karte">
+      <h2>Fahren</h2>
+      <div class="gitter g4" id="fahren"></div>
+      <div class="gitter g2" style="margin-top:8px">
+        <button data-roh="halt">Stopp</button>
+        <button data-roh="dauer" id="dauerfahrt">Halten: aus</button>
+      </div>
+    </div>
+    <div class="karte">
+      <h2>Greifer, Hub, Klang, Effekt</h2>
+      <div class="gitter g2">
+        <button data-roh="greifer" data-wert="auf">Greifer auf</button>
+        <button data-roh="greifer" data-wert="zu">Greifer zu</button>
+        <button data-roh="hub" data-wert="hoch">Heben</button>
+        <button data-roh="hub" data-wert="runter">Senken</button>
+      </div>
+      <div class="gitter g4" style="margin-top:8px" id="klaenge"></div>
+      <div class="gitter g4" style="margin-top:8px" id="effekte"></div>
+    </div>
+    <div class="karte">
+      <h2>Gesendete Rahmen</h2>
+      <div class="log" id="log"></div>
+      <p class="hinweis">
+        Aufbau: <code>58</code> Präambel · Fahrt · Greifer · Hub · Klang · Effekt.
+        Ruhe ist <code>58 11 40 40 00 00</code>. Der Rahmen geht zehnmal pro Sekunde raus.
+      </p>
+    </div>
+  </section>
+
+  <p class="hinweis" id="btHinweis" hidden>
+    Kein Web Bluetooth in diesem Browser. Nötig sind Chrome für Android und eine
+    Auslieferung über HTTPS (oder localhost). Ohne Roboter läuft alles im Simulator.
+  </p>
+</div>
+<script type="module" src="./src/app.js"></script>
+</body>
+</html>
