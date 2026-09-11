@@ -17,12 +17,12 @@ Chrome fuer Android ueber **Web Bluetooth** direkt mit dem Roboter reden laesst.
 | Labor zum Ausmessen des Funkprotokolls | fertig |
 | Funkprotokoll | **entschluesselt**, aus der App des Herstellers |
 | Uebersetzung Absicht -> Stellbytes | fertig, gegen die dokumentierten Rahmen geprueft |
-| Fahren, Greifen, Toene am echten Geraet | **am Roboter noch nicht gefahren** |
+| Fahren, Greifen, Toene am echten Geraet | laeuft — alle drei Motoren und alle Toene |
 | Sensoren als Wahrnehmung (Taster, Hindernis) | verdrahtet, am Geraet ungeprueft |
 | Gesicht, Sprache | noch nicht angefangen |
 
-Die Kette steht vollstaendig: Beduerfnis → Stimmung → Handlung → Motorbefehl →
-Bluetooth. Der Roboter hat drei Motoren zu je `[Befehl, Kraft, Dauer]`, zwei
+Die Kette steht vollstaendig und ist am Geraet gefahren: Beduerfnis → Stimmung →
+Handlung → Motorbefehl → Bluetooth. Der Roboter hat drei Motoren zu je `[Befehl, Kraft, Dauer]`, zwei
 davon Antrieb, einer Greifer, dazu 17 Toene in der Firmware und zwei
 IR-Sensoren. Was aussteht, ist die erste richtige Fahrt — und die Frage, wie
 herum die Motoren im Bausatz stecken. Alles Weitere:
@@ -111,7 +111,7 @@ Drei Sicherungen, unabhaengig voneinander:
 
 ## Naechste Schritte
 
-1. Die erste Fahrt: Drehsinn klaeren, Kraftstufen am echten Modell nachziehen
+1. Drehsinn klaeren und Kraftstufen am echten Modell nachziehen
 2. Nachbessern, was sich dabei als unpassend erweist — die Fahrdauern im
    Repertoire sind am Schreibtisch geschaetzt, nicht am Teppich
 3. Gesicht: Augen auf dem Display, Blick und Blinzeln an die Stimmung gekoppelt

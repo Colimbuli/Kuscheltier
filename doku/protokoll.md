@@ -124,7 +124,9 @@ genau so ueber die Leitung gehen:
 
 Beachte: **in diesen Testrahmen laeuft der dritte Motor mit** (`01 FF FA`),
 waehrend die eigentliche Fahrlogik ihn auf dem zuletzt gesetzten Greiferzustand
-stehen laesst. Ob das Mitlaufen fuer die Fahrt noetig ist, sagt der Code nicht.
+stehen laesst. Der Code sagt nicht, ob das noetig ist — **am Geraet gepruefte
+Antwort: es ist nicht noetig.** Rahmen, in denen nur ein Motor laeuft und die
+beiden anderen auf `02 00 00` stehen, werden angenommen und ausgefuehrt.
 
 ### Abgeleitete Rahmen fuer den Fahrbetrieb
 
@@ -178,6 +180,12 @@ Drehsinn-Schalter im Labor, der sich die Entscheidung dauerhaft merkt.
   Es bleibt also bei genau einem Schreibtyp, und der ist der ohne Bestaetigung.
   Ein Schreibvorgang ist gleichzeitig unterwegs, der naechste folgt aus einer
   Warteschlange und wartet auf `onCharacteristicWrite`.
+
+  **Darauf kommt es an.** Am Geraet geprueft: mit einem Write Request
+  (`writeValue`) bewegt sich kein Motor, mit einem Write Command
+  (`writeValueWithoutResponse`) fahren alle drei. Der Tonkanal nimmt beides an —
+  seine Characteristic kann ohnehin nur `WRITE`. Genau daher ruehrte das lange
+  unerklaerte Muster "Toene gehen, Motoren nicht".
 - **Kein Dauerstrom noetig.** Die Fernsteuerung der App sendet **einen** Rahmen
   je Tastendruck und **einen** beim Loslassen. Die Bewegung endet nach der im
   Rahmen mitgegebenen Dauer von selbst.
@@ -305,14 +313,10 @@ Die vier offenen Fragen der vorigen Fassung:
    9, 11, 12, 13 sind einen Versuch wert.
 4. **Ob die Firmware kuerzere Rahmen annimmt.** Die App sendet ausnahmslos volle
    neun Byte; die Laenge steht als Literal im Code.
-5. **Ob die Firmware auf ein Write Request ueberhaupt reagiert.** Die App schickt
-   nur Write Commands. Sollte sich zeigen, dass der Stellkanal ein Write Request
-   verwirft, waere das die Erklaerung dafuer, dass Toene wirken und Motoren nicht
-   — die Tonkanal-Characteristic kann ohnehin nur `WRITE`.
-6. **Was das Dauerbyte 0 bedeutet.** Die App sendet es nur zusammen mit Kraft 0,
+5. **Was das Dauerbyte 0 bedeutet.** Die App sendet es nur zusammen mit Kraft 0,
    nie bei Kraft groesser null. Ob es „sofort aus" oder „unbegrenzt" heisst,
    steht nirgends.
-7. **Der genaue Wertebereich der Sensoren.** Bekannt ist nur, dass er ueber 1024
+6. **Der genaue Wertebereich der Sensoren.** Bekannt ist nur, dass er ueber 1024
    hinausreicht.
 
 ## Umgesetzt
