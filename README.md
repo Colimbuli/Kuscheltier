@@ -16,14 +16,17 @@ Chrome fuer Android ueber **Web Bluetooth** direkt mit dem Roboter reden laesst.
 | BLE-Verbindung zum Roboter | fertig, am Geraet geprueft |
 | Labor zum Ausmessen des Funkprotokolls | fertig |
 | Funkprotokoll | **entschluesselt**, aus der App des Herstellers |
-| Uebersetzung Absicht -> Stellbytes | **fehlt, jetzt aber schreibbar** |
-| Gesicht, Sensorik, Sprache | noch nicht angefangen |
+| Uebersetzung Absicht -> Stellbytes | fertig, gegen die dokumentierten Rahmen geprueft |
+| Fahren, Greifen, Toene am echten Geraet | **am Roboter noch nicht gefahren** |
+| Sensoren als Wahrnehmung (Taster, Hindernis) | verdrahtet, am Geraet ungeprueft |
+| Gesicht, Sprache | noch nicht angefangen |
 
-Der Roboter spricht, die Verbindung steht, die Sensordaten kommen an — und seit
-der Analyse der Hersteller-App ist auch bekannt, was die neun Bytes eines
-Stellbefehls bedeuten: drei Motoren zu je `[Befehl, Kraft, Dauer]`. Was fehlt,
-ist das Modul, das Absichten in solche Rahmen uebersetzt.
-Alles Weitere: [doku/protokoll.md](doku/protokoll.md).
+Die Kette steht vollstaendig: Beduerfnis → Stimmung → Handlung → Motorbefehl →
+Bluetooth. Der Roboter hat drei Motoren zu je `[Befehl, Kraft, Dauer]`, zwei
+davon Antrieb, einer Greifer, dazu 17 Toene in der Firmware und zwei
+IR-Sensoren. Was aussteht, ist die erste richtige Fahrt — und die Frage, wie
+herum die Motoren im Bausatz stecken. Alles Weitere:
+[doku/protokoll.md](doku/protokoll.md).
 
 ## Ausprobieren
 
@@ -44,17 +47,20 @@ Dann *Roboter verbinden* antippen und `EVRobot2` aus der Liste waehlen. Danach
 im Reiter *Labor* weiter — siehe unten.
 
 ```bash
-npm test               # 37 Tests, ohne Browser
+npm test               # 60 Tests, ohne Browser
 ```
 
 ## Aufbau
 
 ```
 index.html             Oberflaeche: Reiter "Tier" und "Labor"
-src/protokoll.js       UUIDs, Rahmenlaengen, Sensorrahmen. Reine Funktionen.
+src/protokoll.js       UUIDs, Stellrahmen, Toene, Sensorrahmen. Reine Funktionen.
+src/zuordnung.js       Absicht -> Stellrahmen: Richtungen, Kraftstufen, Kurven
+src/drehsinn.js        Merkt sich, wie herum die Motoren eingebaut sind
 src/geraet.js          Die BLE-Verbindung. Kennt nur Bytes.
 src/sondierung.js      Die gefuehrte Suche nach der Bedeutung der Stellbytes
 src/antrieb.js         Basis: Stellzustand in Absichten, Fristen, Not-Aus
+src/antrieb_robo.js      ... ueber Bluetooth an den Roboter
 src/antrieb_sim.js       ... als Protokoll auf dem Bildschirm
 src/triebe.js          Energie, Sattheit, Zuwendung, Beschaeftigung
 src/gemuet.js          Triebe -> Stimmung
@@ -65,41 +71,51 @@ src/app.js             Verdrahtung, Uhr, Anzeige
 
 Die Trennung ist Absicht: `verhalten.js` kennt kein Bluetooth, `geraet.js` kennt
 kein Tier, und `antrieb.js` spricht in Absichten ("fahre vorwaerts, Stufe 2")
-statt in Bytes. Sobald das Protokoll feststeht, kommt genau ein Modul dazu, das
-Absichten in Stellbytes uebersetzt — alles andere bleibt unveraendert.
+statt in Bytes. Genau eine Datei uebersetzt zwischen beiden Welten,
+`zuordnung.js`. Ein anderer Roboter braucht eine neue Zuordnung und einen neuen
+Antrieb — der Rest bleibt unveraendert.
+
+Sobald die Verbindung steht, uebernimmt `antrieb_robo.js` vom Simulator; beim
+Trennen geht es zurueck. Das Tier lebt in beiden Faellen weiter.
 
 ## Das Labor
 
-Das Protokoll ist inzwischen bekannt, das Labor bleibt aber nuetzlich: zum
-Nachpruefen der Rahmen am echten Geraet, zum Klaeren des Drehsinns und fuer die
-Reste, die die Hersteller-App nicht verraet. Der Reiter *Labor* macht das ohne
-Hex-Tipperei:
+Das Protokoll ist bekannt, das Labor bleibt trotzdem noetig: zum Klaeren des
+Drehsinns und fuer die Reste, die die Hersteller-App nicht verraet.
 
-- **Roboter** — Werte aller Kanaele lesen, alles auf null setzen, Sensordaten live
-- **Schalter** — die beiden Ein-Byte-Kanaele auf 0 oder 1 setzen
-- **Gefuehrte Suche** — setzt der Reihe nach genau ein Stellbyte auf `0xFF`, dann
-  `0x80`, dann `0x01`, schaltet nach zwei Sekunden selbst wieder ab und haelt fest,
-  worauf der Roboter reagiert hat. Der Bericht laesst sich kopieren.
+- **Roboter** — Werte aller Kanaele lesen, alles auf null setzen, und die
+  Sensoren live: je IR-Sensor beide Messungen, ihre Differenz und ob daraus ein
+  Hindernis folgt, dazu der Taster
+- **Drehsinn** — kurz vorwaerts fahren, und wenn der Roboter rueckwaerts faehrt,
+  *Tauschen* druecken. Dasselbe fuer den Greifer. Die Entscheidung wird
+  gespeichert und gilt ab dann fuer alles
+- **Toene** — alle 17 Toene der Firmware zum Antippen, wahlweise in Schleife.
+  Dazu der Reservekanal, den die Hersteller-App nicht benutzt
+- **Gefuehrte Suche** — aus der Zeit, als das Rahmenformat unbekannt war. Bleibt
+  fuer die offenen Fragen aus `doku/protokoll.md`
 - **Handbetrieb** — die neun Bytes einzeln verstellen, wahlweise mit Dauersenden
 
 Die Beobachtungen ueberleben einen Neustart der Seite.
 
 ## Sicherheit im Kleinen
 
-Der Antrieb faellt von selbst auf neutral zurueck: jeder Stellwert hat eine
-Frist, Fahrbefehle sind zusaetzlich hart auf 2,5 Sekunden begrenzt. Reisst die
-Verbindung ab oder bleibt die Seite haengen, faehrt das Tier nicht weiter gegen
-die Wand. Der Not-Aus schaltet alles ab und sperrt weitere Befehle, bis er
-wieder entsperrt wird.
+Drei Sicherungen, unabhaengig voneinander:
+
+1. **Die Firmware selbst.** Jeder Stellrahmen traegt eine Dauer von hoechstens
+   2,55 Sekunden; danach haelt der Roboter an, egal was das Handy tut.
+2. **Der Antrieb.** Jeder Kanal hat eine Frist und faellt danach auf neutral;
+   Fahrbefehle sind zusaetzlich hart begrenzt. Die verbleibende Frist steht im
+   Dauerbyte, der Roboter haelt also genau dann an, wann es gemeint war.
+3. **Der Not-Aus.** Bremst alle Motoren, schaltet den Ton ab und nimmt keine
+   Befehle mehr an, bis er wieder entsperrt wird.
 
 ## Naechste Schritte
 
-1. Uebersetzung Absicht -> Stellbytes schreiben, dann faehrt das Tier wirklich
-2. Eine Fahrt zur Klaerung des Drehsinns — danach steht die Richtungstabelle
-3. Sensorauswertung: zwei IR-Sensoren als Differenzmessung, Taster als Streicheln
-4. Toene ans Gemuet koppeln — die Tonliste steht in doku/protokoll.md
-5. Gesicht: Augen auf dem Display, Blick und Blinzeln an die Stimmung gekoppelt
-6. Sprache — erst danach entscheiden, ob ein Sprachmodell auf dem Geraet Sinn ergibt
+1. Die erste Fahrt: Drehsinn klaeren, Kraftstufen am echten Modell nachziehen
+2. Nachbessern, was sich dabei als unpassend erweist — die Fahrdauern im
+   Repertoire sind am Schreibtisch geschaetzt, nicht am Teppich
+3. Gesicht: Augen auf dem Display, Blick und Blinzeln an die Stimmung gekoppelt
+4. Sprache — erst danach entscheiden, ob ein Sprachmodell auf dem Geraet Sinn ergibt
 
 ## Fremdes Material
 

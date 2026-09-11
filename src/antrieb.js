@@ -4,11 +4,15 @@
 // nicht "Byte 3 auf 0x80". Jeder Kanal faellt nach einer Frist von selbst auf
 // neutral zurueck, und der Zustand geht im Takt an die konkrete Umsetzung.
 //
-// Bewusst ohne Protokollwissen: welche Bytes der EVRobot2 fuer "vorwaerts"
-// braucht, ist noch nicht bekannt. Sobald es feststeht, kommt ein Antrieb dazu,
-// der die Absichten in Rahmen uebersetzt - alles darueber bleibt unveraendert.
+// Bewusst ohne Protokollwissen: die Uebersetzung in Stellbytes steht in
+// zuordnung.js, das Senden in antrieb_robo.js. Der Verhaltenskern kennt beides
+// nicht.
+//
+// Die Kanaele bilden ab, was der Roboter wirklich hat: zwei Antriebsmotoren
+// (zusammen "fahrt"), einen Greifermotor und die Tonausgabe. Eine Hubachse gibt
+// es nicht.
 
-export const KANAELE = Object.freeze(['fahrt', 'greifer', 'hub', 'klang', 'effekt']);
+export const KANAELE = Object.freeze(['fahrt', 'greifer', 'klang']);
 
 /** Sicherheitsgrenze: laenger als das faehrt das Tier ohne neuen Befehl nicht. */
 export const FAHRT_GRENZE_MS = 2500;
@@ -46,13 +50,22 @@ export class Antrieb {
   get beschreibung() {
     const z = this.zustand;
     const fahrt = z.fahrt ? `${z.fahrt.richtung}:${z.fahrt.stufe}` : '-';
-    return [
-      `fahrt=${fahrt}`,
-      `greifer=${z.greifer ?? '-'}`,
-      `hub=${z.hub ?? '-'}`,
-      `klang=${z.klang ?? '-'}`,
-      `effekt=${z.effekt ?? '-'}`,
-    ].join('  ');
+    return [`fahrt=${fahrt}`, `greifer=${z.greifer ?? '-'}`, `klang=${z.klang ?? '-'}`].join('  ');
+  }
+
+  /**
+   * Verbleibende Dauer je Kanal in Millisekunden. Der Roboter bekommt sie im
+   * Stellrahmen mit und haelt danach von selbst an, auch wenn diese Seite
+   * stehenbleibt.
+   */
+  restzeiten(zeit = this.jetzt()) {
+    const rest = {};
+    for (const [name, kanal] of this.#kanaele) {
+      rest[name] = kanal.wert === null || kanal.bis === Infinity
+        ? Infinity
+        : Math.max(0, kanal.bis - zeit);
+    }
+    return rest;
   }
 
   /**
@@ -84,16 +97,8 @@ export class Antrieb {
     return this.setze('greifer', stellung, dauerMs);
   }
 
-  hebe(richtung, dauerMs = 600) {
-    return this.setze('hub', richtung, dauerMs);
-  }
-
   spiele(klangIndex, dauerMs = 300) {
     return this.setze('klang', klangIndex, dauerMs);
-  }
-
-  zeige(effektIndex, dauerMs = 300) {
-    return this.setze('effekt', effektIndex, dauerMs);
   }
 
   /**

@@ -1,8 +1,7 @@
 // Die Verbindung zum echten Roboter ueber Web Bluetooth.
 //
-// Diese Schicht kennt nur Bytes: Rahmen schreiben, Sensorrahmen empfangen, die
-// beiden Ein-Byte-Kanaele setzen. Was die Bytes bedeuten, weiss sie nicht -
-// das steht noch nicht fest.
+// Diese Schicht kennt nur Bytes: Stellrahmen schreiben, Sensorrahmen empfangen,
+// Toene ausloesen. Was ein Rahmen bedeutet, entscheidet zuordnung.js.
 //
 // Laeuft in Chrome fuer Android. Die Seite muss ueber HTTPS oder localhost
 // ausgeliefert werden, und verbinde() darf nur aus einer Nutzergeste heraus
@@ -11,13 +10,24 @@
 import {
   DIENST_UUID,
   GERAETE_NAMENSPRAEFIX,
-  SCHALTER_A_UUID,
-  SCHALTER_B_UUID,
+  RESERVE_UUID,
   SENSOR_UUID,
   STELL_UUID,
-  leererRahmen,
+  TON_STOPP,
+  TON_UUID,
   sensorenLesen,
+  stellRahmen,
+  tonByte,
 } from './protokoll.js';
+
+/** Alle Motoren bremsen, mit Dauer null - der Ruhezustand. */
+function haltRahmen() {
+  return stellRahmen([
+    { befehl: 'bremse', kraft: 0, dauerMs: 0 },
+    { befehl: 'bremse', kraft: 0, dauerMs: 0 },
+    { befehl: 'bremse', kraft: 0, dauerMs: 0 },
+  ]);
+}
 
 export function bluetoothVerfuegbar() {
   return typeof navigator !== 'undefined' && !!navigator.bluetooth;
@@ -65,8 +75,8 @@ export class Geraet {
     this.#server = await this.#geraet.gatt.connect();
     const dienst = await this.#server.getPrimaryService(DIENST_UUID);
     this.#stell = await dienst.getCharacteristic(STELL_UUID);
-    this.#schalter.set('a', await dienst.getCharacteristic(SCHALTER_A_UUID));
-    this.#schalter.set('b', await dienst.getCharacteristic(SCHALTER_B_UUID));
+    this.#schalter.set('ton', await dienst.getCharacteristic(TON_UUID));
+    this.#schalter.set('reserve', await dienst.getCharacteristic(RESERVE_UUID));
 
     this.#sensor = await dienst.getCharacteristic(SENSOR_UUID);
     this.#sensor.addEventListener('characteristicvaluechanged', (ereignis) => {
@@ -78,6 +88,8 @@ export class Geraet {
         this.onSensoren(null, roh);
       }
     });
+    // Erst nach dieser Bestaetigung nimmt der Roboter Stellbefehle an - so macht
+    // es auch die Hersteller-App, und vorher verwirft die Firmware alles.
     await this.#sensor.startNotifications();
 
     this.onVerbindung('verbunden', { name: this.name });
@@ -110,10 +122,19 @@ export class Geraet {
     return this;
   }
 
-  /** Alles auf null - der Not-Aus dieser Schicht. */
+  /** Spielt einen Ton, wahlweise in Endlosschleife. */
+  async spieleTon(nummer, schleife = false) {
+    return this.setzeSchalter('ton', tonByte(nummer, schleife));
+  }
+
+  async beendeTon() {
+    return this.setzeSchalter('ton', TON_STOPP);
+  }
+
+  /** Alle Motoren bremsen - der Not-Aus dieser Schicht. */
   async stopp() {
     this.#wartend = null;
-    return this.sende(leererRahmen());
+    return this.sende(haltRahmen());
   }
 
   /**

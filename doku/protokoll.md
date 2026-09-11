@@ -278,12 +278,22 @@ Die vier offenen Fragen der vorigen Fassung:
 5. **Der genaue Wertebereich der Sensoren.** Bekannt ist nur, dass er ueber 1024
    hinausreicht.
 
-## Naechster Schritt im Projekt
+## Umgesetzt
 
-Die Uebersetzung Absicht → Stellbytes kann jetzt geschrieben werden. Sie braucht
-aus dieser Datei nur das Stellrahmen-Kapitel. `src/protokoll.js` bekommt die
-Befehlskonstanten und eine Funktion, die aus drei Motorabsichten den Rahmen
-baut; `SCHALTER_A_UUID` heisst besser `TON_UUID`. Die Sensorauswertung bekommt
-die Differenzbildung und die drei Grenzen 90, 1500 und 2800.
+Alles aus dieser Datei steckt inzwischen im Code:
+
+- `src/protokoll.js` — Befehlskonstanten, `stellRahmen()` aus drei
+  Motorabsichten, `tonByte()` mit Schleifenbit, `sensorenLesen()` mit
+  Differenzbildung und den Grenzen 90, 1500 und 2800. `SCHALTER_A_UUID` heisst
+  jetzt `TON_UUID`, `SCHALTER_B_UUID` heisst `RESERVE_UUID`.
+- `src/zuordnung.js` — Richtungen, Kraftstufen, die Kurvenkraft 0,65
+- `src/drehsinn.js` — die Einbaurichtung der Motoren, einmal ausprobiert und
+  dann gespeichert
+- `src/antrieb_robo.js` — sendet nur bei Absichtswechsel und alle 800 ms zur
+  Auffrischung, statt zehnmal je Sekunde
+
+Die Beispielrahmen dieser Datei sind als Tests hinterlegt: `test/protokoll.test.mjs`
+prueft sie Byte fuer Byte, `test/zuordnung.test.mjs` denselben Weg von der
+Absicht aus. Wer das Protokoll hier korrigiert, sieht sofort, was daran haengt.
 
 [qtevobot]: https://github.com/hasselmm/QtEvoBot

@@ -1,9 +1,11 @@
 // Verdrahtung der Oberflaeche. Enthaelt keine Verhaltenslogik und kein
 // Protokollwissen - nur Knoepfe, Anzeige und die Uhr.
 
+import { RoboAntrieb } from './antrieb_robo.js';
 import { Simulator } from './antrieb_sim.js';
+import { drehsinnLaden, drehsinnSichern } from './drehsinn.js';
 import { Geraet, bluetoothVerfuegbar } from './geraet.js';
-import { RAHMEN_LAENGE, hex, leererRahmen, rahmenAus } from './protokoll.js';
+import { RAHMEN_LAENGE, TOENE, hex, leererRahmen, rahmenAus } from './protokoll.js';
 import { Sondierung, VERSUCHSDAUER_MS } from './sondierung.js';
 import { laden, sichern, vergessen } from './speicher.js';
 import { TRIEBE, Triebe } from './triebe.js';
@@ -13,6 +15,9 @@ const TAKT_MS = 100;
 const ANZEIGE_MS = 200;
 const SICHERN_MS = 5000;
 const BYTE_SCHRITT = 16;
+const SONDIERUNG_SCHLUESSEL = 'kuscheltier.sondierung.v1';
+/** So lange nach einem Ausweichen wird kein neues Hindernis gemeldet. */
+const HINDERNIS_SPERRE_MS = 4000;
 
 const BESCHRIFTUNG = {
   energie: 'Energie',
@@ -24,28 +29,28 @@ const BESCHRIFTUNG = {
 const el = (id) => document.getElementById(id);
 const hexByte = (wert) => wert.toString(16).padStart(2, '0').toUpperCase();
 
-// --- Tier ------------------------------------------------------------------
+// --- Zustand ---------------------------------------------------------------
 
 const gespeichert = laden();
 const triebe = new Triebe(gespeichert?.werte ?? {});
 if (gespeichert) triebe.verstreiche(Date.now() - gespeichert.zeit);
 
-const antrieb = new Simulator();
-antrieb.starteTakt();
+const geraet = new Geraet();
+const drehsinn = drehsinnLaden();
+const sondierung = Sondierung.ausJSON(laden(SONDIERUNG_SCHLUESSEL)?.werte);
+
+let antrieb = neuerSimulator();
 const verhalten = new Verhalten({ triebe, antrieb });
 
 let letzteZeit = Date.now();
 let letzteAnzeige = 0;
 let letztesSichern = Date.now();
-
-// --- Labor -----------------------------------------------------------------
-
-const geraet = new Geraet();
-const SONDIERUNG_SCHLUESSEL = 'kuscheltier.sondierung.v1';
-const sondierung = Sondierung.ausJSON(laden(SONDIERUNG_SCHLUESSEL)?.werte);
+let letztesHindernis = 0;
+let tasterVorher = false;
 let handrahmen = leererRahmen();
 let dauersender = null;
 let versuchLaeuft = false;
+let tonSchleife = false;
 
 function protokolliere(text) {
   const log = el('log');
@@ -56,18 +61,66 @@ function protokolliere(text) {
   log.scrollTop = log.scrollHeight;
 }
 
-geraet.onGesendet = (rahmen) => protokolliere(`> ${hex(rahmen)}`);
+function neuerSimulator() {
+  const sim = new Simulator();
+  sim.onZustand = () => {};
+  sim.onEintrag = (eintrag) => protokolliere(`~ ${eintrag.text}`);
+  sim.starteTakt();
+  return sim;
+}
+
+function neuerRoboAntrieb() {
+  const robo = new RoboAntrieb({ geraet, drehsinn });
+  robo.onRahmen = (_rahmen, text) => protokolliere(`> ${text}`);
+  robo.starteTakt();
+  return robo;
+}
+
+function uebernimm(neu) {
+  antrieb.beendeTakt();
+  antrieb = neu;
+  verhalten.antrieb = neu;
+}
+
+// --- Geraet ----------------------------------------------------------------
+
+geraet.onGesendet = () => {};
 geraet.onSensoren = (messwerte, roh) => {
-  el('sensoren').textContent = messwerte
-    ? `Sensoren  ${messwerte.kanaele.join('  ')}\nStatus    ${hexByte(messwerte.status)}\nRoh       ${hex(roh)}`
-    : `Unerwarteter Sensorrahmen\nRoh       ${hex(roh)}`;
+  if (!messwerte) {
+    el('sensoren').textContent = `Unerwarteter Sensorrahmen\nRoh  ${hex(roh)}`;
+    return;
+  }
+  const zeilen = messwerte.ir.map((s, i) => {
+    const lage = !s.brauchbar ? 'zu hell' : s.hindernis ? 'HINDERNIS' : 'frei';
+    return `IR ${i}   A ${String(s.a).padStart(5)}  B ${String(s.b).padStart(5)}` +
+      `  Differenz ${String(s.differenz).padStart(6)}  ${lage}`;
+  });
+  zeilen.push(`Taster  ${messwerte.taster ? 'gedrückt' : 'offen'}`);
+  el('sensoren').textContent = zeilen.join('\n');
+  sinneswahrnehmung(messwerte);
 };
+
+/** Sensorwerte in Ereignisse fuer das Tier uebersetzen. */
+function sinneswahrnehmung(messwerte) {
+  const jetzt = Date.now();
+  if (messwerte.taster && !tasterVorher) verhalten.reagiere('streicheln', jetzt);
+  tasterVorher = messwerte.taster;
+
+  const inBewegung = antrieb.zustand.fahrt !== null;
+  const hindernis = messwerte.ir.some((s) => s.hindernis);
+  if (inBewegung && hindernis && jetzt - letztesHindernis > HINDERNIS_SPERRE_MS) {
+    letztesHindernis = jetzt;
+    verhalten.reagiere('hindernis', jetzt);
+  }
+}
+
 geraet.onVerbindung = (zustand, info) => {
   if (zustand === 'verbunden') {
     el('status').textContent = info.name ?? 'verbunden';
     el('laborStatus').textContent = `${info.name} verbunden.`;
     el('verbinden').textContent = 'Trennen';
     protokolliere(`verbunden mit ${info.name}`);
+    uebernimm(neuerRoboAntrieb());
     leseWerte();
   } else if (zustand === 'verbindet') {
     el('status').textContent = 'verbinde …';
@@ -78,6 +131,7 @@ geraet.onVerbindung = (zustand, info) => {
       : 'Nicht verbunden. Oben auf „Roboter verbinden" tippen.';
     el('verbinden').textContent = 'Roboter verbinden';
     dauersendenAus();
+    if (antrieb instanceof RoboAntrieb) uebernimm(neuerSimulator());
   }
   zeichne();
 };
@@ -86,8 +140,7 @@ async function leseWerte() {
   if (!geraet.verbunden) return;
   try {
     const werte = await geraet.lies();
-    el('wertSchalterA').textContent = hexByte(werte.schalter_a[0]);
-    el('wertSchalterB').textContent = hexByte(werte.schalter_b[0]);
+    el('wertReserve').textContent = hexByte(werte.schalter_reserve[0]);
     protokolliere(`< Stell    ${hex(werte.stell)}`);
     protokolliere(`< Sensor   ${hex(werte.sensor)}`);
   } catch (fehler) {
@@ -105,6 +158,12 @@ function triebeAufbauen() {
     </div>`).join('');
 }
 
+function toeneAufbauen() {
+  el('toene').innerHTML = Object.entries(TOENE)
+    .map(([nummer, name]) => `<button data-ton="${nummer}">${nummer} · ${name}</button>`)
+    .join('');
+}
+
 function bytesAufbauen() {
   el('bytes').innerHTML = Array.from({ length: RAHMEN_LAENGE }, (_, i) => `
     <div class="bytezeile">
@@ -119,6 +178,11 @@ function bytesAufbauen() {
 
 function zeichneBytes() {
   for (let i = 0; i < RAHMEN_LAENGE; i += 1) el(`byte-${i}`).textContent = hexByte(handrahmen[i]);
+}
+
+function zeichneDrehsinn() {
+  el('wertDrehsinnFahrt').textContent = drehsinn.fahrtGetauscht ? 'getauscht' : 'normal';
+  el('wertDrehsinnGreifer').textContent = drehsinn.greiferGetauscht ? 'getauscht' : 'normal';
 }
 
 function zeichneVersuch() {
@@ -217,7 +281,10 @@ el('notaus').addEventListener('click', async () => {
   dauersendenAus();
   handrahmen = leererRahmen();
   zeichneBytes();
-  if (geraet.verbunden) await geraet.stopp();
+  if (geraet.verbunden) {
+    await geraet.stopp();
+    await geraet.beendeTon().catch(() => {});
+  }
   zeichne();
 });
 
@@ -239,16 +306,65 @@ el('nullen').addEventListener('click', async () => {
   if (geraet.verbunden) await geraet.stopp();
 });
 
+/** Rohbefehle gehen am Verhalten vorbei, also Eigenleben abschalten. */
+function ohneEigenleben(wirkung) {
+  el('autopilot').checked = false;
+  if (antrieb.gesperrt) antrieb.entsperre();
+  return wirkung();
+}
+
+el('drehsinnFahrtProbe').addEventListener('click', () => ohneEigenleben(() => {
+  antrieb.fahre('vor', 2, 700);
+  antrieb.takt();
+}));
+el('drehsinnGreiferProbe').addEventListener('click', () => ohneEigenleben(() => {
+  antrieb.greife('auf', 600);
+  antrieb.takt();
+}));
+
+function drehsinnTauschen(feld) {
+  drehsinn[feld] = !drehsinn[feld];
+  drehsinnSichern(drehsinn);
+  if (antrieb instanceof RoboAntrieb) antrieb.drehsinn = { ...drehsinn };
+  zeichneDrehsinn();
+  protokolliere(`Drehsinn ${feld}: ${drehsinn[feld] ? 'getauscht' : 'normal'}`);
+}
+el('drehsinnFahrtTauschen').addEventListener('click', () => drehsinnTauschen('fahrtGetauscht'));
+el('drehsinnGreiferTauschen').addEventListener('click', () => drehsinnTauschen('greiferGetauscht'));
+
+el('toene').addEventListener('click', async (ereignis) => {
+  const knopf = ereignis.target.closest('button');
+  if (!knopf || !geraet.verbunden) return;
+  const nummer = Number(knopf.dataset.ton);
+  try {
+    await geraet.spieleTon(nummer, tonSchleife);
+    protokolliere(`> Ton ${nummer}${tonSchleife ? ' (Schleife)' : ''}`);
+  } catch (fehler) {
+    protokolliere(`Ton fehlgeschlagen: ${fehler.message ?? fehler}`);
+  }
+});
+
+el('tonAus').addEventListener('click', async () => {
+  if (!geraet.verbunden) return;
+  await geraet.beendeTon().catch(() => {});
+  protokolliere('> Ton aus');
+});
+
+el('tonSchleife').addEventListener('click', () => {
+  tonSchleife = !tonSchleife;
+  el('tonSchleife').textContent = `Schleife: ${tonSchleife ? 'an' : 'aus'}`;
+});
+
 for (const knopf of document.querySelectorAll('[data-schalter]')) {
   knopf.addEventListener('click', async () => {
     const name = knopf.dataset.schalter;
     const wert = Number(knopf.dataset.wert);
     try {
       await geraet.setzeSchalter(name, wert);
-      protokolliere(`> Schalter ${name.toUpperCase()} = ${hexByte(wert)}`);
+      protokolliere(`> ${name} = ${hexByte(wert)}`);
       await leseWerte();
     } catch (fehler) {
-      protokolliere(`Schalter ${name.toUpperCase()} fehlgeschlagen: ${fehler.message ?? fehler}`);
+      protokolliere(`${name} fehlgeschlagen: ${fehler.message ?? fehler}`);
     }
   });
 }
@@ -258,6 +374,7 @@ el('versuchSenden').addEventListener('click', async () => {
   if (!rahmen || versuchLaeuft) return;
   versuchLaeuft = true;
   zeichneVersuch();
+  protokolliere(`> ${hex(rahmen)}`);
   await geraet.sende(rahmen);
   setTimeout(async () => {
     await geraet.stopp();
@@ -269,14 +386,14 @@ el('versuchSenden').addEventListener('click', async () => {
 function versuchNotieren(reaktion) {
   const bemerkung = reaktion ? (prompt('Was ist passiert?') ?? '') : '';
   sondierung.notiere(reaktion, bemerkung);
-  sichereSondierung();
+  sichern(sondierung.toJSON(), Date.now(), SONDIERUNG_SCHLUESSEL);
   zeichneVersuch();
 }
 el('versuchJa').addEventListener('click', () => versuchNotieren(true));
 el('versuchNein').addEventListener('click', () => versuchNotieren(false));
 el('versuchZurueck').addEventListener('click', () => {
   sondierung.zurueck();
-  sichereSondierung();
+  sichern(sondierung.toJSON(), Date.now(), SONDIERUNG_SCHLUESSEL);
   zeichneVersuch();
 });
 el('versuchUeberspringen').addEventListener('click', () => {
@@ -297,10 +414,6 @@ el('berichtLeeren').addEventListener('click', () => {
   vergessen(SONDIERUNG_SCHLUESSEL);
   location.reload();
 });
-
-function sichereSondierung() {
-  sichern(sondierung.toJSON(), Date.now(), SONDIERUNG_SCHLUESSEL);
-}
 
 el('bytes').addEventListener('click', async (ereignis) => {
   const knopf = ereignis.target.closest('button');
@@ -341,7 +454,9 @@ if (!bluetoothVerfuegbar()) {
 }
 
 triebeAufbauen();
+toeneAufbauen();
 bytesAufbauen();
 zeichneBytes();
+zeichneDrehsinn();
 zeichneVersuch();
 zeichne();

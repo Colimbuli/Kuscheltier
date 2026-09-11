@@ -12,7 +12,7 @@ function simulator(start = 0) {
 test('ohne Befehl steht alles auf neutral', () => {
   const { sim, zeit } = simulator();
   sim.takt(zeit());
-  assert.equal(sim.protokoll.at(-1).text, 'fahrt=-  greifer=-  hub=-  klang=-  effekt=-');
+  assert.equal(sim.protokoll.at(-1).text, 'fahrt=-  greifer=-  klang=-');
 });
 
 test('ein Fahrbefehl laeuft nach seiner Dauer von selbst aus', () => {
@@ -79,4 +79,14 @@ test('das Protokoll haelt nur Aenderungen fest', () => {
 test('unbekannte Kanaele fliegen auf', () => {
   const { sim } = simulator();
   assert.throws(() => sim.setze('blinker', true), RangeError);
+  assert.throws(() => sim.setze('hub', 'hoch'), RangeError, 'eine Hubachse hat der Roboter nicht');
+});
+
+test('die Restzeiten zaehlen herunter', () => {
+  const { sim, vor, zeit } = simulator();
+  sim.fahre('vor', 2, 1000);
+  assert.equal(sim.restzeiten(zeit()).fahrt, 1000);
+  assert.equal(sim.restzeiten(zeit()).greifer, Infinity, 'ein stiller Kanal hat keine Frist');
+  assert.equal(sim.restzeiten(vor(400)).fahrt, 600);
+  assert.equal(sim.restzeiten(vor(900)).fahrt, 0, 'nie unter null');
 });

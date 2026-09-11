@@ -2,7 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Simulator } from '../src/antrieb_sim.js';
 import { Triebe } from '../src/triebe.js';
-import { PAUSE_MS, REPERTOIRE, Verhalten } from '../src/verhalten.js';
+import { PAUSE_MS, REAKTIONEN, REPERTOIRE, Verhalten } from '../src/verhalten.js';
+import { TOENE } from '../src/protokoll.js';
+import { RICHTUNGEN_NAMEN } from '../src/zuordnung.js';
+import { KRAFT_STUFEN } from '../src/zuordnung.js';
 
 function aufbau(triebwerte = {}, zufall = () => 0) {
   let uhr = 0;
@@ -24,6 +27,29 @@ test('jede Stimmung hat ein Repertoire', () => {
     for (const h of handlungen) {
       assert.ok(h.name, 'Handlung ohne Namen');
       assert.ok(h.schritte.every((s) => s.dauer > 0), `${h.name} hat einen Schritt ohne Dauer`);
+    }
+  }
+});
+
+test('jeder Schritt laesst sich auf der echten Hardware ausfuehren', () => {
+  const alle = [...Object.values(REPERTOIRE).flat(), ...Object.values(REAKTIONEN)];
+  const erlaubt = new Set(['fahre', 'halt', 'greifer', 'klang', 'warte']);
+  for (const handlung of alle) {
+    for (const s of handlung.schritte) {
+      assert.ok(erlaubt.has(s.aktion), `${handlung.name}: unbekannte Aktion ${s.aktion}`);
+      if (s.aktion === 'fahre') {
+        assert.ok(RICHTUNGEN_NAMEN.includes(s.richtung),
+          `${handlung.name}: Richtung ${s.richtung} gibt es nicht`);
+        assert.ok(s.stufe >= 1 && s.stufe <= KRAFT_STUFEN.length,
+          `${handlung.name}: Stufe ${s.stufe} liegt ausserhalb`);
+      }
+      if (s.aktion === 'greifer') {
+        assert.ok(['auf', 'zu'].includes(s.stellung),
+          `${handlung.name}: Greiferstellung ${s.stellung} gibt es nicht`);
+      }
+      if (s.aktion === 'klang') {
+        assert.ok(TOENE[s.index], `${handlung.name}: Ton ${s.index} kennt die Firmware nicht`);
+      }
     }
   }
 });

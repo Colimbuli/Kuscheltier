@@ -148,21 +148,42 @@
     </div>
 
     <div class="karte">
-      <h2>Schalter (Betriebsart?)</h2>
+      <h2>Drehsinn</h2>
       <p class="hinweis">
-        Zwei Ein-Byte-Kanäle unbekannter Bedeutung. Viele Geräte nehmen erst
-        Befehle an, wenn hier eine <code>1</code> steht. Zuerst beide auf 1 setzen.
+        Wie herum die Motoren im Bausatz stecken, steht in keiner Datei. Einmal
+        ausprobieren, dann merkt es sich die Seite dauerhaft.
       </p>
       <div class="schalterzeile">
-        <span>Schalter A <em id="wertSchalterA">?</em></span>
-        <button data-schalter="a" data-wert="0">0</button>
-        <button data-schalter="a" data-wert="1">1</button>
+        <span>Fahrt <em id="wertDrehsinnFahrt">normal</em></span>
+        <button id="drehsinnFahrtProbe">Kurz vorwärts</button>
+        <button id="drehsinnFahrtTauschen">Tauschen</button>
       </div>
       <div class="schalterzeile">
-        <span>Schalter B <em id="wertSchalterB">?</em></span>
-        <button data-schalter="b" data-wert="0">0</button>
-        <button data-schalter="b" data-wert="1">1</button>
+        <span>Greifer <em id="wertDrehsinnGreifer">normal</em></span>
+        <button id="drehsinnGreiferProbe">Öffnen</button>
+        <button id="drehsinnGreiferTauschen">Tauschen</button>
       </div>
+    </div>
+
+    <div class="karte">
+      <h2>Töne</h2>
+      <p class="hinweis">
+        Die Töne, die die Firmware kennt. Antippen spielt sie ab.
+      </p>
+      <div class="gitter g2" id="toene"></div>
+      <div class="gitter g2" style="margin-top:8px">
+        <button id="tonAus">Ton aus</button>
+        <button id="tonSchleife">Schleife: aus</button>
+      </div>
+      <div class="schalterzeile" style="margin-top:12px">
+        <span>Reservekanal <em id="wertReserve">?</em></span>
+        <button data-schalter="reserve" data-wert="0">0</button>
+        <button data-schalter="reserve" data-wert="1">1</button>
+      </div>
+      <p class="hinweis">
+        Diesen Kanal benutzt die Hersteller-App nicht. Was er schaltet, ist
+        unbekannt — Vorsicht ist angebracht.
+      </p>
     </div>
 
     <div class="karte">
