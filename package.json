@@ -1,7 +1,7 @@
 {
   "name": "kuscheltier",
   "version": "0.1.0",
-  "description": "Elektronisches Haustier: Verhaltenskern im Browser, Motorik ueber einen Clementoni Evolution Robot per Web Bluetooth.",
+  "description": "Elektronisches Haustier: Verhaltenskern im Browser, Motorik ueber einen Bausatzroboter per Web Bluetooth.",
   "type": "module",
   "private": true,
   "scripts": {

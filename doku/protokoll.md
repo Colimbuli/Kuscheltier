@@ -12,9 +12,9 @@ unten als Abschnitt [Beantwortet](#beantwortet). Was der Roboter noch nicht
 verraten hat, steht unter [Offen](#offen).
 
 Der frueher hier dokumentierte Ansatz aus [QtEvoBot][qtevobot] bleibt
-**widerlegt**: jenes Projekt steuert die Vorgaengergeneration
-(`Evolution-Robot`) ueber den Dienst `0xFFF3` mit einem 6-Byte-Rahmen. Weder die
-UUIDs noch das Rahmenformat sind uebertragbar.
+**widerlegt**: jenes Projekt steuert ein aelteres Geraet ueber den Dienst
+`0xFFF3` mit einem 6-Byte-Rahmen. Weder die UUIDs noch das Rahmenformat sind
+uebertragbar.
 
 ## Gemessen
 
@@ -54,11 +54,11 @@ Supervision-Timeout-Multiplikator 1000.
 
 ## Woher das Protokoll stammt
 
-Aus der Hersteller-App `it.clementoni.robomaker` Version 20. Sie ist in
-**Unity/IL2CPP** gebaut und **nicht verschleiert**: Klassen-, Methoden- und
-Feldnamen stehen im Klartext in `global-metadata.dat`, die Methodenruempfe als
-ARM64-Code in `libil2cpp.so`. Die drei UUIDs oben stehen als Zeichenketten in
-den Metadaten; `2f5772da` und `26c8d1e9` kommen darin nicht vor.
+Aus der Android-App des Geraeteherstellers. Sie ist in **Unity/IL2CPP** gebaut
+und **nicht verschleiert**: Klassen-, Methoden- und Feldnamen stehen im
+Klartext in `global-metadata.dat`, die Methodenruempfe als ARM64-Code in
+`libil2cpp.so`. Die drei UUIDs oben stehen als Zeichenketten in den Metadaten;
+`2f5772da` und `26c8d1e9` kommen darin nicht vor.
 
 Jede Aussage in dieser Datei ist an einer bestimmten Stelle der App abgelesen.
 Die vollstaendige Belegkette — Klasse, Methode, Adresse und der jeweils

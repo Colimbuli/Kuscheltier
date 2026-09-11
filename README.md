@@ -1,8 +1,8 @@
 # Kuscheltier
 
 Ein elektronisches Haustier. Das Gehirn laeuft als Webseite auf einem
-Android-Handy, der Koerper ist ein Clementoni-Roboter, der per Bluetooth Low
-Energy angesteuert wird.
+Android-Handy, der Koerper ist ein handelsueblicher Bausatzroboter, der per
+Bluetooth Low Energy angesteuert wird.
 
 Kein App-Store, kein Android Studio, kein Bastelrechner: eine HTML-Seite, die
 Chrome fuer Android ueber **Web Bluetooth** direkt mit dem Roboter reden laesst.
@@ -15,7 +15,7 @@ Chrome fuer Android ueber **Web Bluetooth** direkt mit dem Roboter reden laesst.
 | Simulator (ohne Hardware lauffaehig) | fertig |
 | BLE-Verbindung zum Roboter | fertig, am Geraet geprueft |
 | Labor zum Ausmessen des Funkprotokolls | fertig |
-| Funkprotokoll | **entschluesselt**, aus der Hersteller-App |
+| Funkprotokoll | **entschluesselt**, aus der App des Herstellers |
 | Uebersetzung Absicht -> Stellbytes | **fehlt, jetzt aber schreibbar** |
 | Gesicht, Sensorik, Sprache | noch nicht angefangen |
 
@@ -105,11 +105,11 @@ wieder entsperrt wird.
 
 Keins in diesem Repository. Der erste Anlauf stuetzte sich auf
 [QtEvoBot](https://github.com/hasselmm/QtEvoBot) von Mathias Hasselmann; das
-Projekt steuert die Vorgaengergeneration und passt nicht auf dieses Geraet.
+Projekt steuert ein anderes, aelteres Geraet und passt nicht auf dieses.
 
-Das Funkprotokoll wurde aus der Hersteller-App `it.clementoni.robomaker`
-gelesen. Die APK, die entpackten Dateien und die Notizen mit den Fundstellen
-und woertlichen Codeauszuegen bleiben lokal und kommen hier nicht herein — in
+Das Funkprotokoll wurde aus der App des Geraeteherstellers gelesen. Die APK,
+die entpackten Dateien und die Notizen mit den Fundstellen und woertlichen
+Codeauszuegen bleiben lokal und kommen hier nicht herein — in
 [doku/protokoll.md](doku/protokoll.md) steht allein die Erkenntnis.
 
 ## Hinweis
@@ -119,10 +119,9 @@ dem Zweck, ein selbst geschriebenes Programm mit einem rechtmaessig erworbenen
 Geraet zusammenarbeiten zu lassen (§ 69e UrhG, Art. 6 der Richtlinie
 2009/24/EG; in der Schweiz Art. 21 URG).
 
-Das Projekt steht in **keiner Verbindung zu Clementoni S.p.A.** und wird von
-dort weder unterstuetzt noch geprueft. „Clementoni" und „RoboMaker" sind Marken
-ihrer jeweiligen Inhaber und werden hier nur genannt, um zu bezeichnen, um
-welches Geraet es geht.
+Das Projekt steht in **keiner Verbindung zum Hersteller des Geraets** und wird
+von dort weder unterstuetzt noch geprueft. Genannte Marken gehoeren ihren
+jeweiligen Inhabern.
 
 Dieses Repository enthaelt **keinen Code und keine Dateien des Herstellers** —
 nur die Beschreibung einer Schnittstelle. Schnittstellen als solche sind nach

@@ -1,4 +1,4 @@
-// Das Funkprotokoll des EVRobot2 (Clementoni, Cypress-Chip).
+// Das Funkprotokoll des Roboters (BLE-Name EVRobot2, Cypress-Chip).
 //
 // Am Geraet gemessen, nicht geraten - siehe doku/protokoll.md. Was die neun
 // Bytes des Stellrahmens bedeuten, ist noch offen; genau dafuer gibt es das
