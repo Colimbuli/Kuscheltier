@@ -6,7 +6,8 @@ import { Simulator } from './antrieb_sim.js';
 import { drehsinnLaden, drehsinnSichern } from './drehsinn.js';
 import { Geraet, bluetoothVerfuegbar } from './geraet.js';
 import {
-  MOTOR_ANZAHL, MOTOR_HALT, RAHMEN_LAENGE, TOENE, hex, leererRahmen, rahmenAus, stellRahmen,
+  MOTOR_ANZAHL, MOTOR_HALT, RAHMEN_LAENGE, TESTRAHMEN_VORWAERTS, TOENE, hex, leererRahmen,
+  rahmenAus, stellRahmen,
 } from './protokoll.js';
 import { Sondierung, VERSUCHSDAUER_MS } from './sondierung.js';
 import { laden, sichern, vergessen } from './speicher.js';
@@ -348,17 +349,29 @@ el('motortest').addEventListener('click', async (ereignis) => {
   await geraet.sende(rahmen);
 });
 
+el('belegterRahmen').addEventListener('click', async () => {
+  if (!geraet.verbunden) return;
+  ohneEigenleben(() => {});
+  const rahmen = rahmenAus(TESTRAHMEN_VORWAERTS);
+  protokolliere(`> ${hex(rahmen)}   (belegter Testrahmen)`);
+  await geraet.sende(rahmen);
+});
+
 el('motorStopp').addEventListener('click', async () => {
   if (!geraet.verbunden) return;
   protokolliere('> Stopp');
   await geraet.stopp();
 });
 
-el('schreibart').addEventListener('click', () => {
-  geraet.schreibart = geraet.schreibart === 'mit' ? 'ohne' : 'mit';
+function zeichneSchreibart() {
   el('schreibart').textContent =
     `Schreibart: ${geraet.schreibart === 'mit' ? 'mit' : 'ohne'} Bestätigung`;
-  protokolliere(`Schreibart auf "${geraet.schreibart} Bestaetigung" gestellt.`);
+}
+
+el('schreibart').addEventListener('click', () => {
+  geraet.schreibart = geraet.schreibart === 'mit' ? 'ohne' : 'mit';
+  zeichneSchreibart();
+  protokolliere(`Schreibart: ${geraet.schreibart} Bestaetigung`);
 });
 
 el('drehsinnFahrtProbe').addEventListener('click', () => ohneEigenleben(() => {
@@ -501,6 +514,8 @@ if (!bluetoothVerfuegbar()) {
   el('verbinden').disabled = true;
 }
 
+el('belegterRahmenHex').textContent = hex(TESTRAHMEN_VORWAERTS);
+zeichneSchreibart();
 triebeAufbauen();
 motortestAufbauen();
 toeneAufbauen();

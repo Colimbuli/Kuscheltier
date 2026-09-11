@@ -30,7 +30,7 @@ test('eine Fahrt wird aufgefrischt und endet mit einer Bremse', () => {
   const { antrieb, rahmen, vor, zeit } = aufbau();
   antrieb.fahre('vor', 4, 2000);
   antrieb.takt(zeit());
-  assert.equal(rahmen.at(-1).hex, '01 FF C8 00 FF C8 02 00 00');
+  assert.equal(rahmen.at(-1).hex, '00 FF C8 01 FF C8 02 00 00');
 
   for (let i = 0; i < 25; i += 1) antrieb.takt(vor(100));
 

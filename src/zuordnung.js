@@ -21,16 +21,22 @@ export const KURVE_KRAFT = 0.65;
 
 /**
  * Je Richtung die Befehle der beiden Antriebsmotoren und der Kraftfaktor des
- * inneren Rades. `vorwaerts` an Motor 0 und `rueckwaerts` an Motor 1 ergeben
- * zusammen Geradeausfahrt.
+ * inneren Rades. Die Motoren sind spiegelbildlich eingebaut und laufen fuer
+ * Geradeausfahrt gegenlaeufig.
+ *
+ * Die Polaritaet stammt aus der Testklasse der Hersteller-App, deren Rahmen
+ * fest verdrahtet im Programmtext stehen: vorwaerts {0,1}, rueckwaerts {1,0},
+ * rechts {0,0}, links {1,1}. Dieselbe Belegung ergibt sich unabhaengig davon
+ * aus der Fahrlogik der App. Passt sie am eigenen Bausatz nicht, dreht der
+ * Drehsinn-Schalter im Labor sie um, ohne dass hier etwas zu aendern waere.
  */
 const RICHTUNGEN = Object.freeze({
-  vor: { befehle: ['vorwaerts', 'rueckwaerts'], faktoren: [1, 1] },
-  zurueck: { befehle: ['rueckwaerts', 'vorwaerts'], faktoren: [1, 1] },
-  rechts: { befehle: ['vorwaerts', 'vorwaerts'], faktoren: [1, 1] },
-  links: { befehle: ['rueckwaerts', 'rueckwaerts'], faktoren: [1, 1] },
-  vor_rechts: { befehle: ['vorwaerts', 'rueckwaerts'], faktoren: [1, KURVE_KRAFT] },
-  vor_links: { befehle: ['vorwaerts', 'rueckwaerts'], faktoren: [KURVE_KRAFT, 1] },
+  vor: { befehle: ['rueckwaerts', 'vorwaerts'], faktoren: [1, 1] },
+  zurueck: { befehle: ['vorwaerts', 'rueckwaerts'], faktoren: [1, 1] },
+  rechts: { befehle: ['rueckwaerts', 'rueckwaerts'], faktoren: [1, 1] },
+  links: { befehle: ['vorwaerts', 'vorwaerts'], faktoren: [1, 1] },
+  vor_rechts: { befehle: ['rueckwaerts', 'vorwaerts'], faktoren: [1, KURVE_KRAFT] },
+  vor_links: { befehle: ['rueckwaerts', 'vorwaerts'], faktoren: [KURVE_KRAFT, 1] },
 });
 
 export const RICHTUNGEN_NAMEN = Object.freeze(Object.keys(RICHTUNGEN));

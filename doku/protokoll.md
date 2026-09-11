@@ -106,27 +106,48 @@ Motorzuordnung: **Motor 0 und 1 sind der Fahrantrieb, Motor 2 ist der Greifer**
 (in der App „pinza" beziehungsweise „cluster"). Die beiden Antriebsmotoren sind
 spiegelbildlich eingebaut und laufen fuer Geradeausfahrt **gegenlaeufig**.
 
-### Beispielrahmen
+### Belegte Rahmen aus der Testklasse der App
 
-Die Bytes 6–8 sind der zuletzt gesetzte Greiferzustand, hier im Ruhezustand.
+Die App enthaelt eine Testklasse mit **fest verdrahteten** Rahmen. Deren Werte
+stehen als Literale im Programmtext, die Kraft- und Zeitfelder als
+initialisierte Float-Arrays in den Metadaten (`{1,0; 1,0; 1,0}` und
+`{2,5; 2,5; 2,5}`). Das sind die einzigen Rahmen, von denen belegt ist, dass sie
+genau so ueber die Leitung gehen:
+
+| Testmethode | Befehle | Rahmen |
+|---|---|---|
+| volle Fahrt voraus | `{0, 1, 1}` | `00 FF FA  01 FF FA  01 FF FA` |
+| volle Fahrt zurueck | `{1, 0, 1}` | `01 FF FA  00 FF FA  01 FF FA` |
+| voll nach rechts | `{0, 0, 1}` | `00 FF FA  00 FF FA  01 FF FA` |
+| voll nach links | `{1, 1, 1}` | `01 FF FA  01 FF FA  01 FF FA` |
+| Stopp | `{2, 2, 2}` | `02 00 00  02 00 00  02 00 00` |
+
+Beachte: **in diesen Testrahmen laeuft der dritte Motor mit** (`01 FF FA`),
+waehrend die eigentliche Fahrlogik ihn auf dem zuletzt gesetzten Greiferzustand
+stehen laesst. Ob das Mitlaufen fuer die Fahrt noetig ist, sagt der Code nicht.
+
+### Abgeleitete Rahmen fuer den Fahrbetrieb
+
+Bytes 6–8 sind hier der Greifer im Ruhezustand.
 
 | Absicht | Rahmen |
 |---|---|
-| vorwaerts | `01 FF FA  00 FF FA  02 00 00` |
-| rueckwaerts | `00 FF FA  01 FF FA  02 00 00` |
-| auf der Stelle rechts | `01 FF FA  01 FF FA  02 00 00` |
-| auf der Stelle links | `00 FF FA  00 FF FA  02 00 00` |
-| vorwaerts Rechtsbogen | `01 FF FA  00 A5 FA  02 00 00` |
-| vorwaerts Linksbogen | `01 A5 FA  00 FF FA  02 00 00` |
-| rueckwaerts Rechtsbogen | `00 FF FA  01 A5 FA  02 00 00` |
-| rueckwaerts Linksbogen | `00 A5 FA  01 FF FA  02 00 00` |
+| vorwaerts | `00 FF FA  01 FF FA  02 00 00` |
+| rueckwaerts | `01 FF FA  00 FF FA  02 00 00` |
+| auf der Stelle rechts | `00 FF FA  00 FF FA  02 00 00` |
+| auf der Stelle links | `01 FF FA  01 FF FA  02 00 00` |
+| vorwaerts Rechtsbogen | `00 FF FA  01 A5 FA  02 00 00` |
+| vorwaerts Linksbogen | `00 A5 FA  01 FF FA  02 00 00` |
 | Halt | `02 00 FA  02 00 FA  02 00 00` |
 | Greifer oeffnen | `… … …  … … …  01 FF FA` |
 | Greifer schliessen | `… … …  … … …  00 FF FA` |
-| Greifer anhalten | `… … …  … … …  02 00 FA` |
 
 `0xFF` = volle Kraft, `0xA5` = 165 = die Kurvenkraft 0,65 der App, `0xFA` = 250
 = 2,5 s.
+
+Die Antriebsbytes stimmen mit der Testklasse ueberein: vorwaerts `{0,1}`,
+rueckwaerts `{1,0}`, rechts `{0,0}`, links `{1,1}`. Zwei unabhaengig gelesene
+Stellen der App, dasselbe Muster.
 
 Ein Rahmen aus lauter Nullen ist ebenfalls ein gueltiger Halt (Befehl 0 bei
 Kraft 0), aber die App sendet ihn so nicht.
@@ -139,15 +160,24 @@ den Antrieb, `_direct_cluster_motor` fuer den Greifer. Diese Werte liegen in den
 Unity-Szenendaten, nicht im Programmtext, und sind deshalb aus der App nicht
 ablesbar.
 
-**Praktisch heisst das:** faehrt der Roboter auf `01 FF FA 00 FF FA …`
-rueckwaerts, sind die Bytes 0 und 3 zu tauschen — dann stimmt die ganze Tabelle
-oben. Ein Versuch genuegt, danach ist es eine Konstante.
+Die Testklasse entspricht dem Fall „Antrieb nicht gespiegelt"; ihre Belegung
+ist deshalb die, die zuerst zu probieren ist, und sie steht so im Code.
+
+**Praktisch heisst das:** faehrt der Roboter auf `00 FF FA 01 FF FA …`
+rueckwaerts, sind die Bytes 0 und 3 zu tauschen — dafuer gibt es den
+Drehsinn-Schalter im Labor, der sich die Entscheidung dauerhaft merkt.
 
 ### Sendeverhalten
 
-- **Schreibtyp: „Write Without Response"**, in der Java-Seite der App fest
-  verdrahtet. Ein Schreibvorgang ist gleichzeitig unterwegs, der naechste folgt
-  aus einer Warteschlange.
+- **Schreibtyp: „Write Without Response"** (`WRITE_TYPE_NO_RESPONSE`, Wert 1),
+  an der Aufrufstelle als Literal gesetzt und bis zum Schreibvorgang nicht mehr
+  angefasst. Es gibt zwar ein Feld `writeType` in der Nachrichtenstruktur, das
+  aber **nirgends gelesen** wird, und die Wahl „mit Bestaetigung" geht auf dem
+  Weg von C# nach Java verloren: der dritte Parameter wird in der ersten
+  Anweisung der aufgerufenen Methode ueberschrieben, ohne je gelesen zu werden.
+  Es bleibt also bei genau einem Schreibtyp, und der ist der ohne Bestaetigung.
+  Ein Schreibvorgang ist gleichzeitig unterwegs, der naechste folgt aus einer
+  Warteschlange und wartet auf `onCharacteristicWrite`.
 - **Kein Dauerstrom noetig.** Die Fernsteuerung der App sendet **einen** Rahmen
   je Tastendruck und **einen** beim Loslassen. Die Bewegung endet nach der im
   Rahmen mitgegebenen Dauer von selbst.
@@ -274,8 +304,15 @@ Die vier offenen Fragen der vorigen Fassung:
 3. **Ob die Firmware mehr Toene kennt** als die 17 der App — die Luecken bei 8,
    9, 11, 12, 13 sind einen Versuch wert.
 4. **Ob die Firmware kuerzere Rahmen annimmt.** Die App sendet ausnahmslos volle
-   neun Byte.
-5. **Der genaue Wertebereich der Sensoren.** Bekannt ist nur, dass er ueber 1024
+   neun Byte; die Laenge steht als Literal im Code.
+5. **Ob die Firmware auf ein Write Request ueberhaupt reagiert.** Die App schickt
+   nur Write Commands. Sollte sich zeigen, dass der Stellkanal ein Write Request
+   verwirft, waere das die Erklaerung dafuer, dass Toene wirken und Motoren nicht
+   — die Tonkanal-Characteristic kann ohnehin nur `WRITE`.
+6. **Was das Dauerbyte 0 bedeutet.** Die App sendet es nur zusammen mit Kraft 0,
+   nie bei Kraft groesser null. Ob es „sofort aus" oder „unbegrenzt" heisst,
+   steht nirgends.
+7. **Der genaue Wertebereich der Sensoren.** Bekannt ist nur, dass er ueber 1024
    hinausreicht.
 
 ## Umgesetzt
@@ -291,6 +328,10 @@ Alles aus dieser Datei steckt inzwischen im Code:
   dann gespeichert
 - `src/antrieb_robo.js` — sendet nur bei Absichtswechsel und alle 800 ms zur
   Auffrischung, statt zehnmal je Sekunde
+- `src/geraet.js` — schreibt den Stellkanal ohne Bestaetigung, wie die App;
+  umschaltbar, solange nicht bewiesen ist, dass es darauf ankommt
+- `TESTRAHMEN_VORWAERTS` in `src/protokoll.js` ist der belegte Testrahmen aus
+  der Tabelle oben und im Labor auf einen Knopf gelegt
 
 Die Beispielrahmen dieser Datei sind als Tests hinterlegt: `test/protokoll.test.mjs`
 prueft sie Byte fuer Byte, `test/zuordnung.test.mjs` denselben Weg von der

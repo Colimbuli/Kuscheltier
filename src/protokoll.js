@@ -89,6 +89,15 @@ export function stellRahmen(motoren) {
   return rahmen;
 }
 
+/**
+ * Der einzige Rahmen, von dem aus dem Programmtext der Hersteller-App belegt
+ * ist, dass er genau so ueber die Leitung geht: die Testmethode "Motoren volle
+ * Fahrt voraus" mit fest verdrahteten Werten - Befehle {0,1,1}, Kraft je 1,0,
+ * Dauer je 2,5 s. Anders als im Fahrbetrieb laeuft dort auch der dritte Motor
+ * mit; ob das noetig ist, sagt der Code nicht.
+ */
+export const TESTRAHMEN_VORWAERTS = Object.freeze([0x00, 0xff, 0xfa, 0x01, 0xff, 0xfa, 0x01, 0xff, 0xfa]);
+
 export function leererRahmen() {
   return new Uint8Array(RAHMEN_LAENGE);
 }

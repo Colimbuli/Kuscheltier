@@ -43,12 +43,18 @@ export class Geraet {
   #wartend = null;
 
   /**
-   * Schreibart fuer den Stellkanal. "mit" ist ein Write Request mit
-   * Bestaetigung, "ohne" ein Write Command. Letzteres ist schneller, aber ein
-   * verworfenes Paket faellt nirgends auf - Chrome meldet keinen Fehler.
-   * @type {'mit'|'ohne'}
+   * Schreibart fuer den Stellkanal. "ohne" ist ein Write Command, "mit" ein
+   * Write Request mit Bestaetigung.
+   *
+   * Die Hersteller-App setzt fuer diesen Kanal WRITE_TYPE_NO_RESPONSE fest
+   * verdrahtet - der Wert steht als Literal an der Aufrufstelle und wird bis
+   * zum Schreibvorgang nicht mehr angefasst. Es ist gut moeglich, dass die
+   * Firmware auf ein Write Request gar nicht reagiert; das wuerde erklaeren,
+   * warum die Toene gehen (die Tonkanal-Characteristic kann nur WRITE) und die
+   * Motoren nicht. Umschaltbar bleibt es, weil es nicht bewiesen ist.
+   * @type {'ohne'|'mit'}
    */
-  schreibart = 'mit';
+  schreibart = 'ohne';
 
   constructor() {
     /** @type {(zustand: 'getrennt'|'verbindet'|'verbunden', info?: object) => void} */
