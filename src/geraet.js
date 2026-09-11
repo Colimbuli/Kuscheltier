@@ -42,9 +42,19 @@ export class Geraet {
   #sendetGerade = false;
   #wartend = null;
 
+  /**
+   * Schreibart fuer den Stellkanal. "mit" ist ein Write Request mit
+   * Bestaetigung, "ohne" ein Write Command. Letzteres ist schneller, aber ein
+   * verworfenes Paket faellt nirgends auf - Chrome meldet keinen Fehler.
+   * @type {'mit'|'ohne'}
+   */
+  schreibart = 'mit';
+
   constructor() {
     /** @type {(zustand: 'getrennt'|'verbindet'|'verbunden', info?: object) => void} */
     this.onVerbindung = () => {};
+    /** @type {(rahmen: Uint8Array, erfolg: boolean, fehler?: string) => void} */
+    this.onSchreiben = () => {};
     /** @type {(messwerte: {kanaele: number[], status: number}, roh: Uint8Array) => void} */
     this.onSensoren = () => {};
     /** @type {(rahmen: Uint8Array) => void} */
@@ -151,25 +161,32 @@ export class Geraet {
 
   async #sendeSchleife() {
     this.#sendetGerade = true;
-    try {
-      while (this.#wartend) {
-        const rahmen = this.#wartend;
-        this.#wartend = null;
-        const merkmal = this.#stell;
-        if (!merkmal) break;
-        if (typeof merkmal.writeValueWithoutResponse === 'function') {
+    while (this.#wartend) {
+      const rahmen = this.#wartend;
+      this.#wartend = null;
+      const merkmal = this.#stell;
+      if (!merkmal) break;
+      try {
+        const ohneBestaetigung = this.schreibart === 'ohne'
+          && typeof merkmal.writeValueWithoutResponse === 'function';
+        if (ohneBestaetigung) {
           await merkmal.writeValueWithoutResponse(rahmen);
         } else {
           await merkmal.writeValue(rahmen);
         }
+        this.onSchreiben(rahmen, true);
         this.onGesendet(rahmen);
+      } catch (fehler) {
+        // Ein misslungener Schreibvorgang ist noch kein Verbindungsabbruch.
+        // Er muss aber sichtbar werden, sonst sucht man an der falschen Stelle.
+        this.onSchreiben(rahmen, false, String(fehler.message ?? fehler));
+        if (!this.verbunden) {
+          this.onVerbindung('getrennt', { fehler: String(fehler.message ?? fehler) });
+          break;
+        }
       }
-    } catch (fehler) {
-      this.#wartend = null;
-      this.onVerbindung('getrennt', { fehler: String(fehler) });
-    } finally {
-      this.#sendetGerade = false;
     }
+    this.#sendetGerade = false;
     return this;
   }
 }

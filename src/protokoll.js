@@ -172,9 +172,15 @@ export function sensorenLesen(rohdaten) {
   const ir = [0, 1].map((i) => {
     const a = sicht.getUint16(i * 2, true);
     const b = sicht.getUint16(4 + i * 2, true);
-    const brauchbar = b <= MESSUNG_B_GRENZE && a <= MESSUNG_A_GRENZE;
+    // Ein freier Anschluss liefert durchgehend null. Ohne diese Pruefung
+    // meldete ein gar nicht vorhandener Sensor staendig freie Bahn.
+    const angeschlossen = a > 0 || b > 0;
+    const brauchbar = angeschlossen && b <= MESSUNG_B_GRENZE && a <= MESSUNG_A_GRENZE;
     const differenz = a - b;
-    return { a, b, differenz, brauchbar, hindernis: brauchbar && differenz > HINDERNIS_SCHWELLE };
+    return {
+      a, b, differenz, angeschlossen, brauchbar,
+      hindernis: brauchbar && differenz > HINDERNIS_SCHWELLE,
+    };
   });
   return { ir, taster: bytes[8] !== 0 };
 }

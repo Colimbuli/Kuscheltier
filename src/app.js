@@ -5,7 +5,9 @@ import { RoboAntrieb } from './antrieb_robo.js';
 import { Simulator } from './antrieb_sim.js';
 import { drehsinnLaden, drehsinnSichern } from './drehsinn.js';
 import { Geraet, bluetoothVerfuegbar } from './geraet.js';
-import { RAHMEN_LAENGE, TOENE, hex, leererRahmen, rahmenAus } from './protokoll.js';
+import {
+  MOTOR_ANZAHL, MOTOR_HALT, RAHMEN_LAENGE, TOENE, hex, leererRahmen, rahmenAus, stellRahmen,
+} from './protokoll.js';
 import { Sondierung, VERSUCHSDAUER_MS } from './sondierung.js';
 import { laden, sichern, vergessen } from './speicher.js';
 import { TRIEBE, Triebe } from './triebe.js';
@@ -85,13 +87,18 @@ function uebernimm(neu) {
 // --- Geraet ----------------------------------------------------------------
 
 geraet.onGesendet = () => {};
+geraet.onSchreiben = (rahmen, erfolg, fehler) => {
+  if (!erfolg) protokolliere(`! ${hex(rahmen)} — Schreiben fehlgeschlagen: ${fehler}`);
+};
 geraet.onSensoren = (messwerte, roh) => {
   if (!messwerte) {
     el('sensoren').textContent = `Unerwarteter Sensorrahmen\nRoh  ${hex(roh)}`;
     return;
   }
   const zeilen = messwerte.ir.map((s, i) => {
-    const lage = !s.brauchbar ? 'zu hell' : s.hindernis ? 'HINDERNIS' : 'frei';
+    const lage = !s.angeschlossen ? 'nicht angeschlossen'
+      : !s.brauchbar ? 'zu hell'
+      : s.hindernis ? 'HINDERNIS' : 'frei';
     return `IR ${i}   A ${String(s.a).padStart(5)}  B ${String(s.b).padStart(5)}` +
       `  Differenz ${String(s.differenz).padStart(6)}  ${lage}`;
   });
@@ -317,6 +324,43 @@ function ohneEigenleben(wirkung) {
   return wirkung();
 }
 
+const MOTOR_NAMEN = ['M1', 'M2', 'M3'];
+
+function motortestAufbauen() {
+  el('motortest').innerHTML = MOTOR_NAMEN.flatMap((name, i) => [
+    `<button data-motor="${i}" data-befehl="vorwaerts">${name} vorwärts</button>`,
+    `<button data-motor="${i}" data-befehl="rueckwaerts">${name} rückwärts</button>`,
+  ]).join('');
+}
+
+el('motortest').addEventListener('click', async (ereignis) => {
+  const knopf = ereignis.target.closest('button');
+  if (!knopf || !geraet.verbunden) return;
+  ohneEigenleben(() => {});
+  const index = Number(knopf.dataset.motor);
+  const motoren = Array.from({ length: MOTOR_ANZAHL }, (_, i) => (
+    i === index
+      ? { befehl: knopf.dataset.befehl, kraft: 1, dauerMs: 2000 }
+      : { ...MOTOR_HALT }
+  ));
+  const rahmen = stellRahmen(motoren);
+  protokolliere(`> ${hex(rahmen)}   (${MOTOR_NAMEN[index]} ${knopf.dataset.befehl})`);
+  await geraet.sende(rahmen);
+});
+
+el('motorStopp').addEventListener('click', async () => {
+  if (!geraet.verbunden) return;
+  protokolliere('> Stopp');
+  await geraet.stopp();
+});
+
+el('schreibart').addEventListener('click', () => {
+  geraet.schreibart = geraet.schreibart === 'mit' ? 'ohne' : 'mit';
+  el('schreibart').textContent =
+    `Schreibart: ${geraet.schreibart === 'mit' ? 'mit' : 'ohne'} Bestätigung`;
+  protokolliere(`Schreibart auf "${geraet.schreibart} Bestaetigung" gestellt.`);
+});
+
 el('drehsinnFahrtProbe').addEventListener('click', () => ohneEigenleben(() => {
   antrieb.fahre('vor', 2, 700);
   antrieb.takt();
@@ -458,6 +502,7 @@ if (!bluetoothVerfuegbar()) {
 }
 
 triebeAufbauen();
+motortestAufbauen();
 toeneAufbauen();
 bytesAufbauen();
 zeichneBytes();

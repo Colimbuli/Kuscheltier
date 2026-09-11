@@ -115,3 +115,19 @@ test('die Werkzeuge der Sondierung bleiben erhalten', () => {
   assert.throws(() => rahmenMitByte(RAHMEN_LAENGE, 1), RangeError);
   assert.throws(() => rahmenAus([1, 2, 3]), RangeError);
 });
+
+test('ein freier Sensoranschluss wird als solcher erkannt', () => {
+  const leer = new Uint8Array(9);
+  const { ir } = sensorenLesen(leer);
+  assert.equal(ir[0].angeschlossen, false);
+  assert.equal(ir[0].brauchbar, false);
+  assert.equal(ir[0].hindernis, false, 'ein fehlender Sensor meldet kein Hindernis');
+
+  const einer = new Uint8Array(9);
+  new DataView(einer.buffer).setUint16(2, 900, true);
+  new DataView(einer.buffer).setUint16(6, 100, true);
+  const gemischt = sensorenLesen(einer);
+  assert.equal(gemischt.ir[0].angeschlossen, false);
+  assert.equal(gemischt.ir[1].angeschlossen, true);
+  assert.equal(gemischt.ir[1].hindernis, true);
+});
