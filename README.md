@@ -15,12 +15,15 @@ Chrome fuer Android ueber **Web Bluetooth** direkt mit dem Roboter reden laesst.
 | Simulator (ohne Hardware lauffaehig) | fertig |
 | BLE-Verbindung zum Roboter | fertig, am Geraet geprueft |
 | Labor zum Ausmessen des Funkprotokolls | fertig |
-| Uebersetzung Absicht -> Stellbytes | **fehlt, Protokoll noch unbekannt** |
+| Funkprotokoll | **entschluesselt**, aus der Hersteller-App |
+| Uebersetzung Absicht -> Stellbytes | **fehlt, jetzt aber schreibbar** |
 | Gesicht, Sensorik, Sprache | noch nicht angefangen |
 
-Der Roboter spricht, die Verbindung steht, die Sensordaten kommen an — aber was
-die neun Bytes eines Stellbefehls bedeuten, ist noch nicht bekannt. Genau dafuer
-ist das Labor da. Stand und Vorgehen: [doku/protokoll.md](doku/protokoll.md).
+Der Roboter spricht, die Verbindung steht, die Sensordaten kommen an — und seit
+der Analyse der Hersteller-App ist auch bekannt, was die neun Bytes eines
+Stellbefehls bedeuten: drei Motoren zu je `[Befehl, Kraft, Dauer]`. Was fehlt,
+ist das Modul, das Absichten in solche Rahmen uebersetzt.
+Alles Weitere: [doku/protokoll.md](doku/protokoll.md).
 
 ## Ausprobieren
 
@@ -67,8 +70,10 @@ Absichten in Stellbytes uebersetzt — alles andere bleibt unveraendert.
 
 ## Das Labor
 
-Weil das Funkprotokoll unbekannt ist, muss es ausgemessen werden. Der Reiter
-*Labor* macht das ohne Hex-Tipperei:
+Das Protokoll ist inzwischen bekannt, das Labor bleibt aber nuetzlich: zum
+Nachpruefen der Rahmen am echten Geraet, zum Klaeren des Drehsinns und fuer die
+Reste, die die Hersteller-App nicht verraet. Der Reiter *Labor* macht das ohne
+Hex-Tipperei:
 
 - **Roboter** — Werte aller Kanaele lesen, alles auf null setzen, Sensordaten live
 - **Schalter** — die beiden Ein-Byte-Kanaele auf 0 oder 1 setzen
@@ -89,14 +94,21 @@ wieder entsperrt wird.
 
 ## Naechste Schritte
 
-1. Mit dem Labor herausfinden, was die neun Stellbytes bedeuten
-2. Uebersetzung Absicht -> Stellbytes schreiben, dann faehrt das Tier wirklich
-3. Sensorkanaele zuordnen — der Roboter kann fuehlen, wir wissen nur noch nicht was
-4. Gesicht: Augen auf dem Display, Blick und Blinzeln an die Stimmung gekoppelt
-5. Sprache — erst danach entscheiden, ob ein Sprachmodell auf dem Geraet Sinn ergibt
+1. Uebersetzung Absicht -> Stellbytes schreiben, dann faehrt das Tier wirklich
+2. Eine Fahrt zur Klaerung des Drehsinns — danach steht die Richtungstabelle
+3. Sensorauswertung: zwei IR-Sensoren als Differenzmessung, Taster als Streicheln
+4. Toene ans Gemuet koppeln — die Tonliste steht in doku/protokoll.md
+5. Gesicht: Augen auf dem Display, Blick und Blinzeln an die Stimmung gekoppelt
+6. Sprache — erst danach entscheiden, ob ein Sprachmodell auf dem Geraet Sinn ergibt
 
 ## Fremdes Material
 
-Keins mehr. Der erste Anlauf stuetzte sich auf
+Keins in diesem Repository. Der erste Anlauf stuetzte sich auf
 [QtEvoBot](https://github.com/hasselmm/QtEvoBot) von Mathias Hasselmann; das
 Projekt steuert die Vorgaengergeneration und passt nicht auf dieses Geraet.
+
+Das Funkprotokoll wurde aus der Hersteller-App `it.clementoni.robomaker`
+gelesen. Die APK, die entpackten Dateien und die Notizen mit woertlichen
+Codeauszuegen bleiben lokal und kommen hier nicht herein — in
+[doku/protokoll.md](doku/protokoll.md) steht allein die Erkenntnis, mit
+Fundstellen, damit sie nachpruefbar bleibt.
