@@ -1,10 +1,9 @@
-// Antrieb ohne Hardware: schreibt die Rahmen in ein Protokoll.
+// Antrieb ohne Hardware: schreibt den Stellzustand in ein Protokoll.
 //
-// Damit laesst sich der Verhaltenskern vollstaendig entwickeln und testen,
-// bevor der Roboter ueberhaupt angeschlossen ist.
+// Damit laesst sich der Verhaltenskern vollstaendig entwickeln und beobachten,
+// auch solange das Funkprotokoll des Roboters noch unbekannt ist.
 
 import { Antrieb } from './antrieb.js';
-import { hex } from './protokoll.js';
 
 export class Simulator extends Antrieb {
   /**
@@ -14,9 +13,9 @@ export class Simulator extends Antrieb {
     const { maxZeilen = 200, ...rest } = optionen;
     super(rest);
     this.maxZeilen = maxZeilen;
-    /** @type {{zeit: number, hex: string, zustand: object}[]} */
+    /** @type {{zeit: number, text: string, zustand: object}[]} */
     this.protokoll = [];
-    this.gesendet = 0;
+    this.uebergaben = 0;
     /** @type {(eintrag: object) => void} */
     this.onEintrag = () => {};
   }
@@ -25,13 +24,14 @@ export class Simulator extends Antrieb {
     return true;
   }
 
-  sendeRohdaten(rahmen) {
-    this.gesendet += 1;
-    const eintrag = { zeit: this.jetzt(), hex: hex(rahmen), zustand: this.zustand };
+  sendeStellwerte(zustand) {
+    this.uebergaben += 1;
+    const text = this.beschreibung;
     const letzter = this.protokoll[this.protokoll.length - 1];
-    // Der Ruhestrom wiederholt sich zehnmal pro Sekunde - nur Aenderungen sind
+    // Der Zustand geht zehnmal pro Sekunde durch - nur Aenderungen sind
     // interessant, sonst ist das Protokoll nach zwei Sekunden unlesbar.
-    if (letzter && letzter.hex === eintrag.hex) return;
+    if (letzter && letzter.text === text) return;
+    const eintrag = { zeit: this.jetzt(), text, zustand };
     this.protokoll.push(eintrag);
     if (this.protokoll.length > this.maxZeilen) this.protokoll.shift();
     this.onEintrag(eintrag);

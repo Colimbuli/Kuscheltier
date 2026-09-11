@@ -2,89 +2,90 @@
 
 ## Stand
 
-**Nicht verifiziert.** Die Konstanten stammen aus [QtEvoBot][qtevobot], einer
-inoffiziellen Qt-Bibliothek fuer Clementonis *Evolution Robot*. Dort wurden sie
-fuer die erste Generation ermittelt, die sich per BLE als `Evolution-Robot`
-meldet. Unser Geraet meldet sich als `EVRobot2` — andere Generation, also kann
-das Protokoll abweichen. Die Verifikation steht aus, siehe unten.
+Die GATT-Struktur ist **am Geraet gemessen** und gesichert. Die **Bedeutung der
+neun Stellbytes ist offen** — dafuer gibt es das Labor in der Anwendung.
 
-## Was am Geraet gemessen wurde
+Der frueher hier dokumentierte Ansatz aus [QtEvoBot][qtevobot] ist **widerlegt**:
+jenes Projekt steuert die Vorgaengergeneration (`Evolution-Robot`) ueber den
+Dienst `0xFFF3` mit einem 6-Byte-Rahmen. Ein Verbindungsversuch auf diesen Dienst
+scheitert am EVRobot2 mit „No Services matching UUID 0000fff3 found in Device".
+Weder die UUIDs noch das Rahmenformat sind uebertragbar.
+
+## Gemessen
+
+### Advertising
 
 | | |
 |---|---|
 | BLE-Name | `EVRobot2` |
 | MAC | `00:A0:50:75:2A:ED` (OUI `00:A0:50` = Cypress Semiconductor) |
+| Rohdaten | `02 01 06 09 09 45 56 52 6F 62 6F 74 32` |
 | Flags | `0x06` — LE General Discoverable, **BR/EDR Not Supported** |
 | Advertising | Legacy, Intervall ~26 ms, connectable |
-| Service-UUIDs im Advertising | keine |
+| Service-UUIDs im Advertising | **keine** |
 
-Reines BLE ohne Bluetooth Classic. Damit ist Web Bluetooth in Chrome fuer
-Android grundsaetzlich einsetzbar.
+Reines BLE, deshalb ist Web Bluetooth einsetzbar. Weil das Advertising **keine
+Service-UUIDs** fuehrt, muss die Seite die Dienst-UUID vorher kennen:
+`navigator.bluetooth` gibt nur Dienste heraus, die in `optionalServices` genannt
+sind. Eine Erkundung zur Laufzeit ist ueber Web Bluetooth nicht moeglich — dafuer
+braucht es nRF Connect oder ein anderes Werkzeug mit nativem BLE-Zugriff.
 
-Weil das Geraet **keine Service-UUIDs im Advertising** fuehrt, muss die Seite die
-Service-UUID vorher kennen: `navigator.bluetooth` gibt nur Dienste heraus, die in
-`optionalServices` genannt sind. Eine Erkundung zur Laufzeit gibt es nicht.
+### GATT
 
-## Was aus QtEvoBot uebernommen ist
+Ausser `Generic Access` (`0x1800`) und `Generic Attribute` (`0x1801`) gibt es
+genau einen Dienst. **Kein Device Information Service**, also auch keine
+auslesbare Firmware-Version.
 
-| Rolle | UUID |
-|---|---|
-| Dienst | `0000fff3-0000-1000-8000-00805f9b34fb` |
-| Rueckmeldung (Notify) | `0000fff4-…` |
-| Stellbefehle (Write) | `0000fff5-…` |
+Dienst `2f5772da-18e3-4f2e-82ab-910e81b9f232`:
 
-Der Roboter erwartet einen **6-Byte-Rahmen im Dauerstrom**, etwa alle 100 ms —
-kein Einzelbefehl. Ruhezustand: `58 11 40 40 00 00`.
+| Characteristic | Eigenschaften | Laenge | Gelesener Wert |
+|---|---|---|---|
+| `5e366294-5436-4356-a009-7ccd1e03526d` | NOTIFY, READ | 9 | `BE 01 7E 03 B0 01 B4 00 00` |
+| `165aecf8-ed44-45e7-aae4-63789234a30f` | READ, WRITE, WRITE NO RESPONSE | 9 | alles `00` |
+| `cc9151df-c5eb-477a-a793-287a5500fc81` | READ, WRITE | 1 | `00` |
+| `26c8d1e9-f4ae-4f76-97ea-8576d5e23079` | READ, WRITE, WRITE NO RESPONSE | 1 | `00` |
 
-| Byte | Bedeutung | Werte |
-|---|---|---|
-| 0 | Praeambel | immer `0x58` (`'X'`) |
-| 1 | Fahren | `0x11` Stopp · `0x01–04` vor · `0x05–08` zurueck · `0x09–0C` links · `0x0D–10` rechts, je vier Stufen |
-| 2 | Greifer | `0x40` neutral · `0x3C` auf · `0x3D` zu |
-| 3 | Heben/Senken | `0x40` neutral · `0x3E` hoch · `0x3F` runter |
-| 4 | Klang | `0x00` aus · sonst `21 + Index` |
-| 5 | Effekt | `0x00` aus · `0x3B` laufenden Effekt beenden · sonst `Index + 0x35` (Firmware 1) bzw. `+ 0x47` (Firmware 2) |
+Verbindungsparameter laut `0x2A04`: Intervall 7,5–50 ms, Latenz 0,
+Supervision-Timeout-Multiplikator 1000.
 
-Eine Pruefsumme gibt es nicht.
+### Sensorrahmen
 
-Die Firmware-Version steht als Text im Standarddienst *Device Information*
-(`0x180A`), Characteristic *Firmware Revision String* (`0x2A26`), als `Ver1.0`
-oder `Ver2.0`. Bei „EVRobot**2**" ist `Ver2.0` zu erwarten, also der Versatz
-`0x47`.
+Die neun Bytes von `5e366294…` als vier 16-Bit-Werte little-endian plus ein
+Statusbyte gelesen ergeben **446, 894, 432, 180** und `0x00`. Alle vier liegen
+unter 1024, was auf einen 10-Bit-Analogwandler hindeutet. Die Zuordnung der
+Kanaele zu einzelnen Sensoren steht aus.
 
-Auf `fff4` schickt der Roboter ASCII-Text zurueck, etwa `V3Play` und `V3End` —
-Beginn und Ende eines Klangs.
+### Stellrahmen
 
-## Verifikation — was noch fehlt
+Neun Bytes, im Ruhezustand alle null. Die Bedeutung der einzelnen Bytes ist
+unbekannt.
 
-1. **Dienste bestaetigen.** In nRF Connect auf `EVRobot2` verbinden und pruefen,
-   ob `0xFFF3` mit `FFF4`/`FFF5` auftaucht. Wenn nicht, ist alles unten hinfaellig
-   und das Protokoll muss per HCI-Snoop-Log neu ermittelt werden.
-2. **Erste Bewegung.** Auf `FFF5` schreiben (erst „Write Request", falls wirkungslos
-   „Write Command"):
-   ```
-   58 11 40 40 00 00     Ruhe
-   58 02 40 40 00 00     vorwaerts, Stufe 2
-   58 11 40 40 00 00     Stopp
-   ```
-   Bewegt sich nichts, den Rahmen wiederholt senden — moeglich, dass die Firmware
-   den Dauerstrom braucht und einen Einzelschreibvorgang verwirft. Genau dafuer
-   gibt es die Konsole in dieser Anwendung.
-3. **Byte 1 durchzaehlen.** `0x01` bis `0x10` einzeln senden und notieren, was
-   der Roboter jeweils tut. Stimmen die vier Bloecke zu je vier Stufen?
-4. **Byte 2 und 3 pruefen.** Hat dieses Modell ueberhaupt Greifer und Hub? Das
-   Bedienfeld zeigt `M1 M2 M3` — moeglich, dass M3 auf einem dieser Bytes liegt.
-5. **Klaenge und Effekte abzaehlen.** Welche Indizes existieren, und meldet sich
-   `fff4` dabei?
+## Offene Fragen und wie sie zu klaeren sind
 
-Ergebnisse gehoeren in diese Datei, und die Konstanten in `src/protokoll.js`
-werden entsprechend nachgezogen.
+1. **Was bedeuten die beiden Ein-Byte-Kanaele?** Verdacht: Betriebsart oder
+   Freigabe. Im Labor auf `01` setzen und pruefen, ob der Roboter danach
+   ueberhaupt Stellbefehle annimmt.
+2. **Welches Stellbyte macht was?** Die gefuehrte Suche im Labor setzt der Reihe
+   nach genau ein Byte auf `0xFF`, dann `0x80`, dann `0x01` und protokolliert,
+   worauf der Roboter reagiert.
+3. **Braucht der Roboter einen Dauerstrom?** Der Schalter „Dauersenden" im
+   Handbetrieb wiederholt den Rahmen zehnmal pro Sekunde. Wenn ein einzelner
+   Schreibvorgang wirkungslos bleibt, der wiederholte aber nicht, ist die Frage
+   beantwortet.
+4. **Welcher Sensorkanal ist welcher Sensor?** Bei laufenden Notifications einen
+   Sensor gezielt reizen (Rad drehen, Licht abdecken) und zusehen, welche der
+   vier Zahlen sich bewegt.
 
-## Falls das Protokoll abweicht
+Ergebnisse gehoeren in diese Datei; die Konstanten in `src/protokoll.js` und die
+Uebersetzung der Absichten in Stellbytes werden entsprechend nachgezogen.
 
-Dann per HCI-Snoop-Log neu ermitteln: Entwickleroptionen → „Bluetooth-HCI-Snoop-Log
-aktivieren" → Bluetooth aus/an → mit der Hersteller-App gezielt einzelne Befehle
-ausloesen, jeweils zwei Sekunden Pause → `btsnoop_hci.log` sichern und die
-ATT-Write-Pakete in Wireshark ansehen.
+## Falls die Suche nicht weiterfuehrt
+
+Dann hilft die Hersteller-App: APK ziehen und nach der Dienst-UUID `2f5772da`
+suchen — der Code, der auf `165aecf8…` schreibt, liefert das Rahmenformat exakt.
+Alternativ per HCI-Snoop-Log: Entwickleroptionen → „Bluetooth-HCI-Snoop-Log
+aktivieren" → Bluetooth aus und wieder an → mit der Hersteller-App gezielt
+einzelne Befehle ausloesen, jeweils zwei Sekunden Pause → `btsnoop_hci.log`
+sichern und die ATT-Write-Pakete in Wireshark ansehen.
 
 [qtevobot]: https://github.com/hasselmm/QtEvoBot

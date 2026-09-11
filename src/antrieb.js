@@ -1,12 +1,12 @@
 // Gemeinsame Basis aller Antriebe.
 //
-// Der Roboter erwartet den Stellrahmen als Dauerstrom (alle 100 ms), nicht als
-// Einzelbefehl. Diese Klasse haelt den Stellzustand, laesst jeden Kanal nach
-// einer Frist von selbst auf neutral zurueckfallen und schickt den Rahmen im
-// Takt weiter. Wer den Antrieb benutzt, setzt nur Absichten - das Nachhalten
-// und das Abschalten passiert hier.
-
-import { rahmenBauen, SENDE_INTERVALL_MS } from './protokoll.js';
+// Der Antrieb haelt einen Stellzustand in Absichten - "fahre vorwaerts, Stufe 2",
+// nicht "Byte 3 auf 0x80". Jeder Kanal faellt nach einer Frist von selbst auf
+// neutral zurueck, und der Zustand geht im Takt an die konkrete Umsetzung.
+//
+// Bewusst ohne Protokollwissen: welche Bytes der EVRobot2 fuer "vorwaerts"
+// braucht, ist noch nicht bekannt. Sobald es feststeht, kommt ein Antrieb dazu,
+// der die Absichten in Rahmen uebersetzt - alles darueber bleibt unveraendert.
 
 export const KANAELE = Object.freeze(['fahrt', 'greifer', 'hub', 'klang', 'effekt']);
 
@@ -19,23 +19,15 @@ export class Antrieb {
   #taktgeber = null;
 
   /**
-   * @param {{firmware?: number, intervallMs?: number, fahrtGrenzeMs?: number,
-   *          jetzt?: () => number}} optionen
+   * @param {{intervallMs?: number, fahrtGrenzeMs?: number, jetzt?: () => number}} optionen
    */
   constructor(optionen = {}) {
-    const {
-      firmware = 2,
-      intervallMs = SENDE_INTERVALL_MS,
-      fahrtGrenzeMs = FAHRT_GRENZE_MS,
-      jetzt = () => Date.now(),
-    } = optionen;
-
-    this.firmware = firmware;
+    const { intervallMs = 100, fahrtGrenzeMs = FAHRT_GRENZE_MS, jetzt = () => Date.now() } = optionen;
     this.intervallMs = intervallMs;
     this.fahrtGrenzeMs = fahrtGrenzeMs;
     this.jetzt = jetzt;
-    /** @type {(rahmen: Uint8Array, zeit: number) => void} */
-    this.onRahmen = () => {};
+    /** @type {(zustand: object, zeit: number) => void} */
+    this.onZustand = () => {};
     this.#kanaele = new Map(KANAELE.map((name) => [name, { wert: null, bis: 0 }]));
   }
 
@@ -43,11 +35,24 @@ export class Antrieb {
     return this.#gesperrt;
   }
 
-  /** Aktueller Stellzustand als einfaches Objekt (fuer Anzeige und Tests). */
+  /** Aktueller Stellzustand als einfaches Objekt. */
   get zustand() {
-    const z = { firmware: this.firmware };
+    const z = {};
     for (const [name, kanal] of this.#kanaele) z[name] = kanal.wert;
     return z;
+  }
+
+  /** Kurzform des Zustands fuer Protokoll und Anzeige. */
+  get beschreibung() {
+    const z = this.zustand;
+    const fahrt = z.fahrt ? `${z.fahrt.richtung}:${z.fahrt.stufe}` : '-';
+    return [
+      `fahrt=${fahrt}`,
+      `greifer=${z.greifer ?? '-'}`,
+      `hub=${z.hub ?? '-'}`,
+      `klang=${z.klang ?? '-'}`,
+      `effekt=${z.effekt ?? '-'}`,
+    ].join('  ');
   }
 
   /**
@@ -92,8 +97,8 @@ export class Antrieb {
   }
 
   /**
-   * Alles auf neutral, ein Rahmen sofort raus, danach nimmt der Antrieb keine
-   * Befehle mehr an. `entsperre()` hebt das wieder auf.
+   * Alles auf neutral, sofort hinaus, danach nimmt der Antrieb keine Befehle
+   * mehr an. `entsperre()` hebt das wieder auf.
    */
   notAus() {
     for (const kanal of this.#kanaele.values()) {
@@ -101,7 +106,7 @@ export class Antrieb {
       kanal.bis = Infinity;
     }
     this.#gesperrt = true;
-    this.#sendeRahmen(this.jetzt());
+    this.#uebergib(this.jetzt());
     return this;
   }
 
@@ -110,10 +115,7 @@ export class Antrieb {
     return this;
   }
 
-  /**
-   * Ein Takt: abgelaufene Kanaele zuruecksetzen, Rahmen bauen und schicken.
-   * Wird vom Taktgeber aufgerufen, in Tests direkt.
-   */
+  /** Ein Takt: abgelaufene Kanaele zuruecksetzen und den Zustand uebergeben. */
   takt(zeit = this.jetzt()) {
     for (const kanal of this.#kanaele.values()) {
       if (kanal.wert !== null && zeit >= kanal.bis) {
@@ -121,14 +123,14 @@ export class Antrieb {
         kanal.bis = Infinity;
       }
     }
-    this.#sendeRahmen(zeit);
+    this.#uebergib(zeit);
     return this;
   }
 
-  #sendeRahmen(zeit) {
-    const rahmen = rahmenBauen(this.zustand);
-    this.onRahmen(rahmen, zeit);
-    this.sendeRohdaten(rahmen);
+  #uebergib(zeit) {
+    const zustand = this.zustand;
+    this.onZustand(zustand, zeit);
+    this.sendeStellwerte(zustand);
   }
 
   starteTakt() {
@@ -145,7 +147,7 @@ export class Antrieb {
   }
 
   /** Von der konkreten Umsetzung zu ueberschreiben. */
-  sendeRohdaten(_rahmen) {
-    throw new Error('sendeRohdaten() muss von der Unterklasse umgesetzt werden');
+  sendeStellwerte(_zustand) {
+    throw new Error('sendeStellwerte() muss von der Unterklasse umgesetzt werden');
   }
 }

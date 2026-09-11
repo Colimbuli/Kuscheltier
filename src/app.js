@@ -1,17 +1,18 @@
 // Verdrahtung der Oberflaeche. Enthaelt keine Verhaltenslogik und kein
 // Protokollwissen - nur Knoepfe, Anzeige und die Uhr.
 
-import { BleAntrieb, bluetoothVerfuegbar } from './antrieb_ble.js';
 import { Simulator } from './antrieb_sim.js';
-import { FAHRT_GRENZE_MS } from './antrieb.js';
-import { FAHRT_RICHTUNGEN, FAHRT_STUFEN, hex } from './protokoll.js';
-import { laden, sichern } from './speicher.js';
+import { Geraet, bluetoothVerfuegbar } from './geraet.js';
+import { RAHMEN_LAENGE, hex, leererRahmen, rahmenAus } from './protokoll.js';
+import { Sondierung, VERSUCHSDAUER_MS } from './sondierung.js';
+import { laden, sichern, vergessen } from './speicher.js';
 import { TRIEBE, Triebe } from './triebe.js';
 import { Verhalten } from './verhalten.js';
 
 const TAKT_MS = 100;
 const ANZEIGE_MS = 200;
 const SICHERN_MS = 5000;
+const BYTE_SCHRITT = 16;
 
 const BESCHRIFTUNG = {
   energie: 'Energie',
@@ -19,50 +20,79 @@ const BESCHRIFTUNG = {
   zuwendung: 'Zuwendung',
   beschaeftigung: 'Beschäftigung',
 };
-const RICHTUNG_TEXT = { vor: 'Vor', zurueck: 'Zurück', links: 'Links', rechts: 'Rechts' };
 
 const el = (id) => document.getElementById(id);
+const hexByte = (wert) => wert.toString(16).padStart(2, '0').toUpperCase();
 
-// --- Zustand ---------------------------------------------------------------
+// --- Tier ------------------------------------------------------------------
 
 const gespeichert = laden();
 const triebe = new Triebe(gespeichert?.werte ?? {});
 if (gespeichert) triebe.verstreiche(Date.now() - gespeichert.zeit);
 
-let antrieb = neuerSimulator();
+const antrieb = new Simulator();
+antrieb.starteTakt();
 const verhalten = new Verhalten({ triebe, antrieb });
-let dauerfahrt = false;
+
 let letzteZeit = Date.now();
 let letzteAnzeige = 0;
 let letztesSichern = Date.now();
-let letzterLogEintrag = '';
 
-function neuerSimulator() {
-  const sim = new Simulator();
-  sim.onRahmen = protokolliere;
-  sim.starteTakt();
-  return sim;
-}
+// --- Labor -----------------------------------------------------------------
 
-function uebernimm(neu) {
-  antrieb.beendeTakt();
-  antrieb = neu;
-  antrieb.onRahmen = protokolliere;
-  verhalten.antrieb = neu;
-}
+const geraet = new Geraet();
+const SONDIERUNG_SCHLUESSEL = 'kuscheltier.sondierung.v1';
+const sondierung = Sondierung.ausJSON(laden(SONDIERUNG_SCHLUESSEL)?.werte);
+let handrahmen = leererRahmen();
+let dauersender = null;
+let versuchLaeuft = false;
 
-// --- Protokollausgabe ------------------------------------------------------
-
-function protokolliere(rahmen) {
-  const zeile = hex(rahmen);
-  if (zeile === letzterLogEintrag) return; // Ruhestrom nicht mitschreiben
-  letzterLogEintrag = zeile;
+function protokolliere(text) {
   const log = el('log');
   const uhrzeit = new Date().toLocaleTimeString('de-DE', { hour12: false });
-  log.textContent += `${uhrzeit}  ${zeile}\n`;
+  log.textContent += `${uhrzeit}  ${text}\n`;
   const zeilen = log.textContent.split('\n');
   if (zeilen.length > 200) log.textContent = zeilen.slice(-200).join('\n');
   log.scrollTop = log.scrollHeight;
+}
+
+geraet.onGesendet = (rahmen) => protokolliere(`> ${hex(rahmen)}`);
+geraet.onSensoren = (messwerte, roh) => {
+  el('sensoren').textContent = messwerte
+    ? `Sensoren  ${messwerte.kanaele.join('  ')}\nStatus    ${hexByte(messwerte.status)}\nRoh       ${hex(roh)}`
+    : `Unerwarteter Sensorrahmen\nRoh       ${hex(roh)}`;
+};
+geraet.onVerbindung = (zustand, info) => {
+  if (zustand === 'verbunden') {
+    el('status').textContent = info.name ?? 'verbunden';
+    el('laborStatus').textContent = `${info.name} verbunden.`;
+    el('verbinden').textContent = 'Trennen';
+    protokolliere(`verbunden mit ${info.name}`);
+    leseWerte();
+  } else if (zustand === 'verbindet') {
+    el('status').textContent = 'verbinde …';
+  } else {
+    el('status').textContent = info?.fehler ? 'Fehler' : 'nicht verbunden';
+    el('laborStatus').textContent = info?.fehler
+      ? `Getrennt: ${info.fehler}`
+      : 'Nicht verbunden. Oben auf „Roboter verbinden" tippen.';
+    el('verbinden').textContent = 'Roboter verbinden';
+    dauersendenAus();
+  }
+  zeichne();
+};
+
+async function leseWerte() {
+  if (!geraet.verbunden) return;
+  try {
+    const werte = await geraet.lies();
+    el('wertSchalterA').textContent = hexByte(werte.schalter_a[0]);
+    el('wertSchalterB').textContent = hexByte(werte.schalter_b[0]);
+    protokolliere(`< Stell    ${hex(werte.stell)}`);
+    protokolliere(`< Sensor   ${hex(werte.sensor)}`);
+  } catch (fehler) {
+    protokolliere(`Lesen fehlgeschlagen: ${fehler.message ?? fehler}`);
+  }
 }
 
 // --- Anzeige ---------------------------------------------------------------
@@ -73,6 +103,38 @@ function triebeAufbauen() {
       <div class="trieb-kopf"><span>${BESCHRIFTUNG[name]}</span><span id="wert-${name}">–</span></div>
       <div class="spur"><div class="fuellung" id="balken-${name}" style="width:0%"></div></div>
     </div>`).join('');
+}
+
+function bytesAufbauen() {
+  el('bytes').innerHTML = Array.from({ length: RAHMEN_LAENGE }, (_, i) => `
+    <div class="bytezeile">
+      <span class="name">Byte ${i}</span>
+      <button data-byte="${i}" data-delta="-${BYTE_SCHRITT}">−</button>
+      <span class="wert" id="byte-${i}">00</span>
+      <button data-byte="${i}" data-delta="${BYTE_SCHRITT}">+</button>
+      <button data-byte="${i}" data-setze="255">FF</button>
+      <button data-byte="${i}" data-setze="0">0</button>
+    </div>`).join('');
+}
+
+function zeichneBytes() {
+  for (let i = 0; i < RAHMEN_LAENGE; i += 1) el(`byte-${i}`).textContent = hexByte(handrahmen[i]);
+}
+
+function zeichneVersuch() {
+  const versuch = sondierung.aktuell;
+  if (!versuch) {
+    el('versuchText').textContent = 'Alle Versuche durch.';
+    el('versuchHex').textContent = '–';
+  } else {
+    el('versuchText').textContent =
+      `Versuch ${sondierung.nummer} von ${sondierung.laenge}: Byte ${versuch.byte} = 0x${hexByte(versuch.wert)}`;
+    el('versuchHex').textContent = hex(sondierung.rahmen);
+  }
+  el('bericht').textContent = sondierung.ergebnisse.length ? sondierung.bericht() : 'Noch kein Versuch.';
+  el('versuchSenden').disabled = !versuch || versuchLaeuft || !geraet.verbunden;
+  el('versuchJa').disabled = !versuch;
+  el('versuchNein').disabled = !versuch;
 }
 
 function zeichne() {
@@ -88,8 +150,7 @@ function zeichne() {
     balken.dataset.knapp = String(wert < 35);
   }
 
-  const verbunden = antrieb.verbunden && antrieb instanceof BleAntrieb;
-  el('lampe').dataset.an = String(verbunden);
+  el('lampe').dataset.an = String(geraet.verbunden);
   el('notaus').textContent = antrieb.gesperrt ? 'Entsperren' : 'NOT-AUS';
 }
 
@@ -121,55 +182,42 @@ addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') sichern(triebe.toJSON());
 });
 
-// --- Knoepfe ---------------------------------------------------------------
+// --- Knoepfe: allgemein ----------------------------------------------------
 
 function reiterWaehlen(name) {
   const tier = name === 'tier';
   el('reiter-tier').setAttribute('aria-selected', String(tier));
-  el('reiter-konsole').setAttribute('aria-selected', String(!tier));
+  el('reiter-labor').setAttribute('aria-selected', String(!tier));
   el('blatt-tier').hidden = !tier;
-  el('blatt-konsole').hidden = tier;
+  el('blatt-labor').hidden = tier;
 }
 el('reiter-tier').addEventListener('click', () => reiterWaehlen('tier'));
-el('reiter-konsole').addEventListener('click', () => reiterWaehlen('konsole'));
+el('reiter-labor').addEventListener('click', () => reiterWaehlen('labor'));
 
 el('verbinden').addEventListener('click', async () => {
-  if (antrieb instanceof BleAntrieb && antrieb.verbunden) {
-    await antrieb.trenne();
-    uebernimm(neuerSimulator());
-    el('status').textContent = 'Simulator';
-    el('verbinden').textContent = 'Roboter verbinden';
+  if (geraet.verbunden) {
+    await geraet.trenne();
     return;
   }
-  const ble = new BleAntrieb();
-  ble.onVerbindung = (zustand, info) => {
-    if (zustand === 'verbunden') {
-      el('status').textContent = `${info.name} · Firmware ${info.firmware}`;
-      el('verbinden').textContent = 'Trennen';
-    } else if (zustand === 'verbindet') {
-      el('status').textContent = 'verbinde …';
-    } else {
-      el('status').textContent = info?.fehler ? `getrennt: ${info.fehler}` : 'getrennt';
-      el('verbinden').textContent = 'Roboter verbinden';
-    }
-  };
-  ble.onMeldung = (meldung) => protokolliere(new TextEncoder().encode(`< V${meldung.klang} ${meldung.zustand}`));
   try {
-    uebernimm(ble);
-    await ble.verbinde();
+    await geraet.verbinde();
   } catch (fehler) {
-    el('status').textContent = String(fehler.message ?? fehler);
-    uebernimm(neuerSimulator());
+    el('laborStatus').textContent = String(fehler.message ?? fehler);
+    protokolliere(`Verbinden fehlgeschlagen: ${fehler.message ?? fehler}`);
   }
 });
 
-el('notaus').addEventListener('click', () => {
+el('notaus').addEventListener('click', async () => {
   if (antrieb.gesperrt) {
     antrieb.entsperre();
   } else {
     antrieb.notAus();
     el('autopilot').checked = false;
   }
+  dauersendenAus();
+  handrahmen = leererRahmen();
+  zeichneBytes();
+  if (geraet.verbunden) await geraet.stopp();
   zeichne();
 });
 
@@ -180,55 +228,120 @@ for (const knopf of document.querySelectorAll('[data-ereignis]')) {
   });
 }
 
-// Konsole: Rohbefehle gehen am Verhalten vorbei, also Eigenleben abschalten.
-function rohbefehl(wirkung) {
-  el('autopilot').checked = false;
-  if (antrieb.gesperrt) antrieb.entsperre();
-  wirkung();
-}
+// --- Knoepfe: Labor --------------------------------------------------------
 
-const fahren = el('fahren');
-for (const richtung of FAHRT_RICHTUNGEN) {
-  for (let stufe = 1; stufe <= FAHRT_STUFEN; stufe += 1) {
-    const knopf = document.createElement('button');
-    knopf.textContent = `${RICHTUNG_TEXT[richtung]} ${stufe}`;
-    knopf.addEventListener('click', () => rohbefehl(() => {
-      antrieb.fahre(richtung, stufe, dauerfahrt ? FAHRT_GRENZE_MS : 700);
-    }));
-    fahren.append(knopf);
-  }
-}
+el('lesen').addEventListener('click', leseWerte);
 
-el('dauerfahrt').addEventListener('click', () => {
-  dauerfahrt = !dauerfahrt;
-  el('dauerfahrt').textContent = `Halten: ${dauerfahrt ? 'an' : 'aus'}`;
+el('nullen').addEventListener('click', async () => {
+  handrahmen = leererRahmen();
+  zeichneBytes();
+  dauersendenAus();
+  if (geraet.verbunden) await geraet.stopp();
 });
 
-for (const knopf of document.querySelectorAll('[data-roh]')) {
-  const art = knopf.dataset.roh;
-  if (art === 'dauer') continue;
-  knopf.addEventListener('click', () => rohbefehl(() => {
-    if (art === 'halt') antrieb.halt();
-    if (art === 'greifer') antrieb.greife(knopf.dataset.wert, 600);
-    if (art === 'hub') antrieb.hebe(knopf.dataset.wert, 600);
-  }));
+for (const knopf of document.querySelectorAll('[data-schalter]')) {
+  knopf.addEventListener('click', async () => {
+    const name = knopf.dataset.schalter;
+    const wert = Number(knopf.dataset.wert);
+    try {
+      await geraet.setzeSchalter(name, wert);
+      protokolliere(`> Schalter ${name.toUpperCase()} = ${hexByte(wert)}`);
+      await leseWerte();
+    } catch (fehler) {
+      protokolliere(`Schalter ${name.toUpperCase()} fehlgeschlagen: ${fehler.message ?? fehler}`);
+    }
+  });
 }
 
-for (let i = 1; i <= 4; i += 1) {
-  const knopf = document.createElement('button');
-  knopf.textContent = `Klang ${i}`;
-  knopf.addEventListener('click', () => rohbefehl(() => antrieb.spiele(i, 400)));
-  el('klaenge').append(knopf);
+el('versuchSenden').addEventListener('click', async () => {
+  const rahmen = sondierung.rahmen;
+  if (!rahmen || versuchLaeuft) return;
+  versuchLaeuft = true;
+  zeichneVersuch();
+  await geraet.sende(rahmen);
+  setTimeout(async () => {
+    await geraet.stopp();
+    versuchLaeuft = false;
+    zeichneVersuch();
+  }, VERSUCHSDAUER_MS);
+});
+
+function versuchNotieren(reaktion) {
+  const bemerkung = reaktion ? (prompt('Was ist passiert?') ?? '') : '';
+  sondierung.notiere(reaktion, bemerkung);
+  sichereSondierung();
+  zeichneVersuch();
 }
-for (let i = 1; i <= 4; i += 1) {
-  const knopf = document.createElement('button');
-  knopf.textContent = `Effekt ${i}`;
-  knopf.addEventListener('click', () => rohbefehl(() => antrieb.zeige(i, 400)));
-  el('effekte').append(knopf);
+el('versuchJa').addEventListener('click', () => versuchNotieren(true));
+el('versuchNein').addEventListener('click', () => versuchNotieren(false));
+el('versuchZurueck').addEventListener('click', () => {
+  sondierung.zurueck();
+  sichereSondierung();
+  zeichneVersuch();
+});
+el('versuchUeberspringen').addEventListener('click', () => {
+  sondierung.ueberspringe();
+  zeichneVersuch();
+});
+
+el('berichtKopieren').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(sondierung.bericht());
+    protokolliere('Bericht in die Zwischenablage kopiert.');
+  } catch {
+    protokolliere('Kopieren nicht moeglich - Bericht bitte von Hand markieren.');
+  }
+});
+el('berichtLeeren').addEventListener('click', () => {
+  if (!confirm('Alle notierten Beobachtungen verwerfen?')) return;
+  vergessen(SONDIERUNG_SCHLUESSEL);
+  location.reload();
+});
+
+function sichereSondierung() {
+  sichern(sondierung.toJSON(), Date.now(), SONDIERUNG_SCHLUESSEL);
 }
 
-el('btHinweis').hidden = bluetoothVerfuegbar();
-if (!bluetoothVerfuegbar()) el('verbinden').disabled = true;
+el('bytes').addEventListener('click', async (ereignis) => {
+  const knopf = ereignis.target.closest('button');
+  if (!knopf) return;
+  const index = Number(knopf.dataset.byte);
+  if (knopf.dataset.setze !== undefined) {
+    handrahmen[index] = Number(knopf.dataset.setze);
+  } else {
+    const neu = handrahmen[index] + Number(knopf.dataset.delta);
+    handrahmen[index] = Math.min(255, Math.max(0, neu));
+  }
+  zeichneBytes();
+  if (geraet.verbunden) await geraet.sende(rahmenAus(handrahmen));
+});
+
+function dauersendenAus() {
+  if (dauersender !== null) clearInterval(dauersender);
+  dauersender = null;
+  const schalter = el('dauersenden');
+  if (schalter) schalter.checked = false;
+}
+
+el('dauersenden').addEventListener('change', () => {
+  if (el('dauersenden').checked) {
+    dauersender = setInterval(() => {
+      if (geraet.verbunden) geraet.sende(rahmenAus(handrahmen));
+    }, TAKT_MS);
+  } else {
+    dauersendenAus();
+  }
+});
+
+// --- Start -----------------------------------------------------------------
+
+if (!bluetoothVerfuegbar()) {
+  el('btHinweis').hidden = false;
+  el('verbinden').disabled = true;
+}
 
 triebeAufbauen();
+bytesAufbauen();
+zeichneBytes();
+zeichneVersuch();
 zeichne();

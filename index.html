@@ -77,6 +77,22 @@
   }
   .hinweis { font-size: 13px; color: var(--gedaempft); margin-top: 10px; }
   .hinweis code { background: #0e1014; padding: 1px 5px; border-radius: 4px; }
+  .messwerte { font: 13px/1.8 ui-monospace, SFMono-Regular, Menlo, monospace; color: #b9c2d0; margin-top: 10px; white-space: pre-wrap; }
+  .schalterzeile { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .schalterzeile span { flex: 1; font-size: 15px; }
+  .schalterzeile em { color: var(--gedaempft); font-style: normal; font-family: ui-monospace, monospace; }
+  .schalterzeile button { min-width: 62px; }
+  .versuch { font-size: 19px; font-weight: 600; margin: 4px 0 2px; }
+  .versuch-hex { font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--akzent); margin: 0 0 12px; }
+  button.breit { width: 100%; }
+  button.ja { background: #2f6f57; border-color: transparent; font-weight: 600; }
+  .bericht { font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; background: #0e1014;
+             border: 1px solid var(--rand); border-radius: 10px; padding: 10px; margin: 12px 0;
+             white-space: pre-wrap; color: #b9c2d0; max-height: 220px; overflow-y: auto; }
+  .bytezeile { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .bytezeile .name { width: 60px; font-size: 14px; color: var(--gedaempft); }
+  .bytezeile .wert { width: 62px; text-align: center; font: 15px ui-monospace, monospace; }
+  .bytezeile button { flex: 1; min-width: 0; padding: 10px 4px; }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -85,7 +101,7 @@
   <header>
     <span class="lampe" id="lampe" data-an="false"></span>
     <span class="titel">Kuscheltier</span>
-    <span class="status" id="status">Simulator</span>
+    <span class="status" id="status">nicht verbunden</span>
   </header>
 
   <div class="gitter g2" style="margin-bottom:12px">
@@ -95,7 +111,7 @@
 
   <div class="reiter" role="tablist">
     <button role="tab" id="reiter-tier" aria-selected="true">Tier</button>
-    <button role="tab" id="reiter-konsole" aria-selected="false">Konsole</button>
+    <button role="tab" id="reiter-labor" aria-selected="false">Labor</button>
   </div>
 
   <section id="blatt-tier">
@@ -120,33 +136,75 @@
     </div>
   </section>
 
-  <section id="blatt-konsole" hidden>
+  <section id="blatt-labor" hidden>
     <div class="karte">
-      <h2>Fahren</h2>
-      <div class="gitter g4" id="fahren"></div>
-      <div class="gitter g2" style="margin-top:8px">
-        <button data-roh="halt">Stopp</button>
-        <button data-roh="dauer" id="dauerfahrt">Halten: aus</button>
-      </div>
-    </div>
-    <div class="karte">
-      <h2>Greifer, Hub, Klang, Effekt</h2>
+      <h2>Roboter</h2>
+      <p class="hinweis" id="laborStatus">Nicht verbunden. Oben auf „Roboter verbinden" tippen.</p>
       <div class="gitter g2">
-        <button data-roh="greifer" data-wert="auf">Greifer auf</button>
-        <button data-roh="greifer" data-wert="zu">Greifer zu</button>
-        <button data-roh="hub" data-wert="hoch">Heben</button>
-        <button data-roh="hub" data-wert="runter">Senken</button>
+        <button id="lesen">Werte lesen</button>
+        <button id="nullen">Alles auf 0</button>
       </div>
-      <div class="gitter g4" style="margin-top:8px" id="klaenge"></div>
-      <div class="gitter g4" style="margin-top:8px" id="effekte"></div>
+      <div id="sensoren" class="messwerte"></div>
     </div>
+
     <div class="karte">
-      <h2>Gesendete Rahmen</h2>
-      <div class="log" id="log"></div>
+      <h2>Schalter (Betriebsart?)</h2>
       <p class="hinweis">
-        Aufbau: <code>58</code> Präambel · Fahrt · Greifer · Hub · Klang · Effekt.
-        Ruhe ist <code>58 11 40 40 00 00</code>. Der Rahmen geht zehnmal pro Sekunde raus.
+        Zwei Ein-Byte-Kanäle unbekannter Bedeutung. Viele Geräte nehmen erst
+        Befehle an, wenn hier eine <code>1</code> steht. Zuerst beide auf 1 setzen.
       </p>
+      <div class="schalterzeile">
+        <span>Schalter A <em id="wertSchalterA">?</em></span>
+        <button data-schalter="a" data-wert="0">0</button>
+        <button data-schalter="a" data-wert="1">1</button>
+      </div>
+      <div class="schalterzeile">
+        <span>Schalter B <em id="wertSchalterB">?</em></span>
+        <button data-schalter="b" data-wert="0">0</button>
+        <button data-schalter="b" data-wert="1">1</button>
+      </div>
+    </div>
+
+    <div class="karte">
+      <h2>Geführte Suche</h2>
+      <p class="hinweis">
+        Jeder Versuch setzt genau ein Byte des Stellrahmens. Senden, zwei Sekunden
+        auf den Roboter schauen, dann melden, ob etwas passiert ist. Das Gerät wird
+        danach automatisch wieder auf null gesetzt.
+      </p>
+      <p class="versuch" id="versuchText">–</p>
+      <p class="versuch-hex" id="versuchHex">–</p>
+      <button class="haupt breit" id="versuchSenden">Senden und hinschauen</button>
+      <div class="gitter g2" style="margin-top:8px">
+        <button class="ja" id="versuchJa">Etwas passiert</button>
+        <button id="versuchNein">Nichts</button>
+      </div>
+      <div class="gitter g2" style="margin-top:8px">
+        <button id="versuchZurueck">Zurück</button>
+        <button id="versuchUeberspringen">Überspringen</button>
+      </div>
+      <pre class="bericht" id="bericht">Noch kein Versuch.</pre>
+      <div class="gitter g2">
+        <button id="berichtKopieren">Bericht kopieren</button>
+        <button id="berichtLeeren">Suche zurücksetzen</button>
+      </div>
+    </div>
+
+    <div class="karte">
+      <h2>Handbetrieb</h2>
+      <p class="hinweis">
+        Die neun Bytes einzeln verstellen. Jede Änderung geht sofort an den Roboter.
+      </p>
+      <div id="bytes"></div>
+      <label class="schalter">
+        <input type="checkbox" id="dauersenden">
+        Dauersenden (zehnmal pro Sekunde wiederholen)
+      </label>
+    </div>
+
+    <div class="karte">
+      <h2>Verkehr</h2>
+      <div class="log" id="log"></div>
     </div>
   </section>
 
