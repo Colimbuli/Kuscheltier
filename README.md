@@ -108,7 +108,25 @@ Keins in diesem Repository. Der erste Anlauf stuetzte sich auf
 Projekt steuert die Vorgaengergeneration und passt nicht auf dieses Geraet.
 
 Das Funkprotokoll wurde aus der Hersteller-App `it.clementoni.robomaker`
-gelesen. Die APK, die entpackten Dateien und die Notizen mit woertlichen
-Codeauszuegen bleiben lokal und kommen hier nicht herein — in
-[doku/protokoll.md](doku/protokoll.md) steht allein die Erkenntnis, mit
-Fundstellen, damit sie nachpruefbar bleibt.
+gelesen. Die APK, die entpackten Dateien und die Notizen mit den Fundstellen
+und woertlichen Codeauszuegen bleiben lokal und kommen hier nicht herein — in
+[doku/protokoll.md](doku/protokoll.md) steht allein die Erkenntnis.
+
+## Hinweis
+
+Dies ist eine unabhaengige Arbeit zur **Interoperabilitaet**: sie dient allein
+dem Zweck, ein selbst geschriebenes Programm mit einem rechtmaessig erworbenen
+Geraet zusammenarbeiten zu lassen (§ 69e UrhG, Art. 6 der Richtlinie
+2009/24/EG; in der Schweiz Art. 21 URG).
+
+Das Projekt steht in **keiner Verbindung zu Clementoni S.p.A.** und wird von
+dort weder unterstuetzt noch geprueft. „Clementoni" und „RoboMaker" sind Marken
+ihrer jeweiligen Inhaber und werden hier nur genannt, um zu bezeichnen, um
+welches Geraet es geht.
+
+Dieses Repository enthaelt **keinen Code und keine Dateien des Herstellers** —
+nur die Beschreibung einer Schnittstelle. Schnittstellen als solche sind nach
+§ 69a Abs. 2 UrhG nicht urheberrechtlich geschuetzt.
+
+Benutzung auf eigene Gefahr: die Software bewegt Motoren eines Spielzeugs.
+Der Not-Aus ist da, damit man ihn benutzt.

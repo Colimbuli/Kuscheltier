@@ -60,27 +60,14 @@ Feldnamen stehen im Klartext in `global-metadata.dat`, die Methodenruempfe als
 ARM64-Code in `libil2cpp.so`. Die drei UUIDs oben stehen als Zeichenketten in
 den Metadaten; `2f5772da` und `26c8d1e9` kommen darin nicht vor.
 
-Die tragenden Klassen und ihre Adressen in `libil2cpp.so` (arm64-v8a), damit
-jede Aussage unten nachpruefbar bleibt:
+Jede Aussage in dieser Datei ist an einer bestimmten Stelle der App abgelesen.
+Die vollstaendige Belegkette — Klasse, Methode, Adresse und der jeweils
+entscheidende Codeausschnitt — ist festgehalten, bleibt aber **lokal**. Sie
+nuetzt nur dem, der dieselbe APK vorliegen hat und die Analyse nachvollziehen
+will; zum Nachbauen des Protokolls braucht man sie nicht.
 
-| Klasse / Methode | RVA | Was daraus folgt |
-|---|---|---|
-| `ClemRobotBLE..cctor` | `0x6FBBD4` | Zuordnung der drei UUIDs, `MOTOR_BACKWARD=0`, `MOTOR_FORWARD=1`, `MOTOR_BRAKE=2` |
-| `ClemRobotBLE.Motors(int[], float[], float[])` | `0x6DBFC4` | Aufbau des 9-Byte-Rahmens, Umrechnung von Kraft und Dauer |
-| `ClemRobotBLE.PlaySound(int, bool)` | `0x6FB76C` | Aufbau des Tonbytes |
-| `ClemRobotBLE.IRValueON` / `.IRValueOFF` / `.TouchPressed` | `0x6FB164` / `0x6FB310` / `0x6FB444` | Belegung des Sensorrahmens |
-| `ClemRobotBLE.SubscriptionACK` | `0x6FAF0C` | die Verbindung gilt erst nach der Notification-Bestaetigung als benutzbar |
-| `ClemRobotBLE.ScanServices` | `0x6FABB4` | kein Schreib-Handschlag; letzte Handlung ist das Einschalten der Notifications |
-| `RobotControllerBLE..cctor` | `0x44D7E0` | `TURN_VALUE=0.65`, `OFF_LIMIT=1500`, `ON_LIMIT=2800`, `THRESHOLD_VISIBILITY=90` |
-| `RobotControllerBLE.MoveAction(STATE_MOVE)` | `0x44B77C` | die neun Fahrtrichtungen |
-| `RobotControllerBLE.RealtimePinzaCommand(PINZA_MOVE)` | `0x44C2F4` | der dritte Motor ist der Greifer |
-| `RobotControllerBLE.UpdateRuntimeMotorsCommands` | `0x44C86C` | Sendetakt im Programmbetrieb |
-| `RobotControllerBLE.CheckVisibilityIR` / `.IntensityIR` | `0x44D41C` / `0x44D610` | wie die Sensorwerte verrechnet werden |
-| `com.xplored.ble.Peripheral$1.run` (in `classes.dex`) | — | `setWriteType(1)` = **WRITE_TYPE_NO_RESPONSE**, fest verdrahtet |
-
-Die APK, die entpackten Dateien und die ausfuehrlichen Notizen mit woertlichen
-Codeauszuegen bleiben lokal. Hier steht die Erkenntnis, nicht das fremde
-Material.
+Die APK, die entpackten Dateien und diese Notizen kommen nicht ins Repository.
+Hier steht die Erkenntnis, nicht das fremde Material.
 
 ## Der Stellrahmen
 
