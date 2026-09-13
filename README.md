@@ -132,6 +132,17 @@ Eine Totzone um die Mitte verhindert das Pendeln, ein kurz verlorenes Gesicht
 wird abgewartet statt sofort gesucht, und nach einigen Sekunden ohne Sicht gibt
 das Folgen auf, statt endlos im Kreis zu drehen.
 
+**Richtung kommt vom Gesicht, Abstand vom Infrarotsensor.** Ein Roboter auf dem
+Fussboden schaut zu einem stehenden Menschen hinauf; dessen Gesicht bleibt auch
+aus naechster Naehe klein, waehrend die Fuesse schon davor stehen. Das Gesicht
+taugt deshalb nur als Richtungsgeber. Meldet der Sensor ein Hindernis, faehrt
+das Tier nicht weiter vor — drehen und zurueckweichen bleiben erlaubt.
+
+Wie gross ein Gesicht aus dem gewuenschten Abstand aussieht, haengt am Aufbau
+und ist nicht zu erraten. Deshalb der Knopf **Abstand hier ist richtig**:
+hinstellen, auf den Wunschabstand treten, antippen. Der gemessene Wert wird
+uebernommen und ueberlebt einen Neustart.
+
 *Folgen* und *Eigenleben* schliessen einander aus — es kann immer nur eines von
 beidem fahren.
 

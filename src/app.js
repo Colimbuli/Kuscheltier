@@ -21,6 +21,7 @@ const ANZEIGE_MS = 200;
 const SICHERN_MS = 5000;
 const BYTE_SCHRITT = 16;
 const SONDIERUNG_SCHLUESSEL = 'kuscheltier.sondierung.v1';
+const FOLGEN_SCHLUESSEL = 'kuscheltier.folgen.v1';
 /** So lange nach einem Ausweichen wird kein neues Hindernis gemeldet. */
 const HINDERNIS_SPERRE_MS = 4000;
 /**
@@ -67,7 +68,11 @@ let gespiegelt = false;
 let letzterBefund = null;
 
 const auge = new Auge();
-const folgen = new Folgen();
+const gemerkt = laden(FOLGEN_SCHLUESSEL)?.werte;
+const folgen = new Folgen(
+  typeof gemerkt?.zielGroesse === 'number' ? { zielGroesse: gemerkt.zielGroesse } : {},
+);
+let hindernisImWeg = false;
 
 function protokolliere(text) {
   const log = el('log');
@@ -128,9 +133,14 @@ function sinneswahrnehmung(messwerte) {
   if (messwerte.taster && !tasterVorher) verhalten.reagiere('streicheln', jetzt);
   tasterVorher = messwerte.taster;
 
+  hindernisImWeg = messwerte.ir.some((s) => s.hindernis);
+
+  // Beim Folgen ist das Hindernis eine Abstandsgrenze, keine Schrecksekunde -
+  // dort wertet es folgen.js aus, und eine Ausweichhandlung wuerde nur stoeren.
+  if (el('folgen').checked) return;
+
   const inBewegung = antrieb.zustand.fahrt !== null;
-  const hindernis = messwerte.ir.some((s) => s.hindernis);
-  if (inBewegung && hindernis && jetzt - letztesHindernis > HINDERNIS_SPERRE_MS) {
+  if (inBewegung && hindernisImWeg && jetzt - letztesHindernis > HINDERNIS_SPERRE_MS) {
     letztesHindernis = jetzt;
     verhalten.reagiere('hindernis', jetzt);
   }
@@ -265,7 +275,10 @@ function zeichneMessung(befund) {
   } else if (auge.laeuft) {
     zeilen.push('Gesicht   keins im Bild');
   }
-  zeilen.push(`Folgen    ${folgen.zustand}`);
+  zeilen.push(
+    `Ziel      Groesse ${folgen.einstellungen.zielGroesse.toFixed(2)}`,
+    `Folgen    ${folgen.zustand}${hindernisImWeg ? '  (Hindernis)' : ''}`,
+  );
   el('sichtMessung').textContent = zeilen.join('\n');
 }
 
@@ -301,7 +314,7 @@ setInterval(() => {
   if (antrieb.gesperrt) {
     // nichts
   } else if (el('folgen').checked) {
-    const absicht = folgen.takt(letzterBefund, jetzt);
+    const absicht = folgen.takt(letzterBefund, jetzt, { hindernis: hindernisImWeg });
     if (absicht) {
       antrieb.fahre(absicht.richtung, absicht.stufe, FOLGEN_BEFEHL_MS);
     } else {
@@ -380,6 +393,7 @@ for (const knopf of document.querySelectorAll('[data-ereignis]')) {
 
 auge.onBefund = (befund) => {
   letzterBefund = befund;
+  el('abstandMerken').disabled = !befund.gefunden;
   zeichneSicht(befund);
 };
 
@@ -390,6 +404,7 @@ auge.onZustand = (zustand, text) => {
   el('folgen').disabled = !auge.laeuft;
   if (!auge.laeuft) {
     el('folgen').checked = false;
+    el('abstandMerken').disabled = true;
     letzterBefund = null;
     folgen.zuruecksetzen();
   }
@@ -412,6 +427,17 @@ el('kamera').addEventListener('click', async () => {
   } finally {
     el('kamera').disabled = false;
   }
+});
+
+el('abstandMerken').addEventListener('click', () => {
+  const groesse = folgen.zielAusBefund(letzterBefund);
+  if (groesse === null) {
+    protokolliere('Abstand nicht uebernommen - kein brauchbares Gesicht im Bild.');
+    return;
+  }
+  sichern({ zielGroesse: groesse }, Date.now(), FOLGEN_SCHLUESSEL);
+  protokolliere(`Zielabstand gemerkt: Gesichtsgroesse ${groesse.toFixed(3)}`);
+  zeichne();
 });
 
 el('sichtSpiegeln').addEventListener('click', () => {

@@ -101,3 +101,42 @@ test('jede erzeugte Richtung kennt die Zuordnung', () => {
     assert.ok(a.stufe >= 1 && a.stufe <= 4);
   }
 });
+
+test('die Zielgroesse passt zu einem Roboter auf dem Fussboden', () => {
+  assert.ok(STANDARD.zielGroesse <= 0.2,
+    'ein stehender Mensch zeigt aus Bodenhoehe ein kleines Gesicht');
+});
+
+test('ein Hindernis haelt das Vorfahren an, nicht das Drehen', () => {
+  const f = new Folgen();
+  const weit = gesicht(0, STANDARD.zielGroesse - 0.2);
+  assert.deepEqual(f.takt(weit, 0, { hindernis: false }).richtung, 'vor');
+  assert.equal(f.takt(weit, 0, { hindernis: true }), null);
+  assert.equal(f.zustand, 'blockiert');
+
+  const daneben = gesicht(0.5, STANDARD.zielGroesse - 0.2);
+  assert.equal(f.takt(daneben, 0, { hindernis: true }).richtung, 'rechts',
+    'wegdrehen muss auch vor einem Hindernis erlaubt bleiben');
+});
+
+test('ein Hindernis hindert nicht am Zurueckweichen', () => {
+  const f = new Folgen();
+  const nah = gesicht(0, STANDARD.zielGroesse + 0.2);
+  assert.equal(f.takt(nah, 0, { hindernis: true }).richtung, 'zurueck');
+});
+
+test('die Zielgroesse laesst sich aus einem Befund uebernehmen', () => {
+  const f = new Folgen();
+  assert.equal(f.zielAusBefund(gesicht(0, 0.09)), 0.09);
+  assert.equal(f.einstellungen.zielGroesse, 0.09);
+  assert.equal(f.takt(gesicht(0, 0.09), 0), null, 'der gemessene Abstand gilt als richtig');
+});
+
+test('unsinnige Messungen werden nicht uebernommen', () => {
+  const f = new Folgen();
+  const vorher = f.einstellungen.zielGroesse;
+  for (const befund of [null, { gefunden: false }, gesicht(0, 0.001), gesicht(0, 0.95)]) {
+    assert.equal(f.zielAusBefund(befund), null);
+  }
+  assert.equal(f.einstellungen.zielGroesse, vorher);
+});

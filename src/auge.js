@@ -19,8 +19,13 @@ export const WASM_URL = `${PROGRAMM_URL}/wasm`;
 export const MODELL_URL =
   'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite';
 
-/** Gesichtserkennung zehnmal je Sekunde genuegt und schont den Akku. */
-export const ERKENNUNGS_INTERVALL_MS = 100;
+/**
+ * Abstand zwischen zwei Erkennungen. Gemessen am Zielgeraet braucht eine
+ * Erkennung rund 27 ms, der Prozessor ist also nicht der Engpass - dieser Wert
+ * ist es. Er rastet auf den Kameratakt ein: bei 30 Bildern je Sekunde wird
+ * daraus jedes zweite Bild, also etwa 15 Erkennungen je Sekunde.
+ */
+export const ERKENNUNGS_INTERVALL_MS = 60;
 
 /** Darunter gilt ein Fund nicht als Gesicht. */
 export const MINDESTGUETE = 0.5;
