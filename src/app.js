@@ -3,7 +3,9 @@
 
 import { RoboAntrieb } from './antrieb_robo.js';
 import { Simulator } from './antrieb_sim.js';
+import { Auge, kameraVerfuegbar } from './auge.js';
 import { drehsinnLaden, drehsinnSichern } from './drehsinn.js';
+import { Folgen } from './folgen.js';
 import { Geraet, bluetoothVerfuegbar } from './geraet.js';
 import {
   MOTOR_ANZAHL, MOTOR_HALT, RAHMEN_LAENGE, TESTRAHMEN_VORWAERTS, TOENE, hex, leererRahmen,
@@ -21,6 +23,12 @@ const BYTE_SCHRITT = 16;
 const SONDIERUNG_SCHLUESSEL = 'kuscheltier.sondierung.v1';
 /** So lange nach einem Ausweichen wird kein neues Hindernis gemeldet. */
 const HINDERNIS_SPERRE_MS = 4000;
+/**
+ * Wie lange ein Fahrbefehl des Folgens gilt. Reichlich laenger als ein Takt,
+ * damit eine ausgelassene Erkennung nicht ruckelt - und kurz genug, dass der
+ * Roboter stehenbleibt, wenn die Seite haengt.
+ */
+const FOLGEN_BEFEHL_MS = 400;
 
 const BESCHRIFTUNG = {
   energie: 'Energie',
@@ -54,6 +62,12 @@ let handrahmen = leererRahmen();
 let dauersender = null;
 let versuchLaeuft = false;
 let tonSchleife = false;
+let gespiegelt = false;
+/** @type {object|null} */
+let letzterBefund = null;
+
+const auge = new Auge();
+const folgen = new Folgen();
 
 function protokolliere(text) {
   const log = el('log');
@@ -213,6 +227,48 @@ function zeichneVersuch() {
   el('versuchNein').disabled = !versuch;
 }
 
+function zeichneSicht(befund) {
+  const leinwand = el('sichtRahmen');
+  const flaeche = leinwand.getBoundingClientRect();
+  leinwand.width = Math.round(flaeche.width);
+  leinwand.height = Math.round(flaeche.height);
+  const stift = leinwand.getContext('2d');
+  stift.clearRect(0, 0, leinwand.width, leinwand.height);
+
+  if (befund?.gefunden) {
+    const k = befund.kasten;
+    const x = (gespiegelt ? 1 - k.x - k.b : k.x) * leinwand.width;
+    stift.strokeStyle = folgen.zustand === 'haelt' ? '#5ac8a0' : '#e2b04a';
+    stift.lineWidth = 3;
+    stift.strokeRect(x, k.y * leinwand.height, k.b * leinwand.width, k.h * leinwand.height);
+  }
+  // Die Mittellinie macht sichtbar, worauf das Folgen ausrichtet.
+  stift.strokeStyle = '#ffffff33';
+  stift.lineWidth = 1;
+  stift.beginPath();
+  stift.moveTo(leinwand.width / 2, 0);
+  stift.lineTo(leinwand.width / 2, leinwand.height);
+  stift.stroke();
+}
+
+function zeichneMessung(befund) {
+  const zeilen = [
+    `Zustand   ${auge.zustand}${auge.beschleunigung ? ` (${auge.beschleunigung})` : ''}`,
+    `Tempo     ${auge.fps} Bilder/s, ${auge.dauerMs} ms je Erkennung`,
+  ];
+  if (befund?.gefunden) {
+    zeilen.push(
+      `Gesicht   Ablage ${befund.mitteX.toFixed(2)}   Groesse ${befund.groesse.toFixed(2)}` +
+      `   Guete ${befund.guete.toFixed(2)}`,
+      `Gesichter ${befund.anzahl}`,
+    );
+  } else if (auge.laeuft) {
+    zeilen.push('Gesicht   keins im Bild');
+  }
+  zeilen.push(`Folgen    ${folgen.zustand}`);
+  el('sichtMessung').textContent = zeilen.join('\n');
+}
+
 function zeichne() {
   el('stimmung').textContent = verhalten.stimmung;
   const handlung = verhalten.aktuell;
@@ -228,6 +284,7 @@ function zeichne() {
 
   el('lampe').dataset.an = String(geraet.verbunden);
   el('notaus').textContent = antrieb.gesperrt ? 'Entsperren' : 'NOT-AUS';
+  zeichneMessung(letzterBefund);
 }
 
 // --- Uhr -------------------------------------------------------------------
@@ -241,7 +298,18 @@ setInterval(() => {
   const ruhend = verhalten.ruht && ['erschoepft', 'muede'].includes(verhalten.stimmung);
   triebe.verstreiche(abstand, { inBewegung, ruhend });
 
-  if (el('autopilot').checked && !antrieb.gesperrt) verhalten.takt(jetzt);
+  if (antrieb.gesperrt) {
+    // nichts
+  } else if (el('folgen').checked) {
+    const absicht = folgen.takt(letzterBefund, jetzt);
+    if (absicht) {
+      antrieb.fahre(absicht.richtung, absicht.stufe, FOLGEN_BEFEHL_MS);
+    } else {
+      antrieb.halt();
+    }
+  } else if (el('autopilot').checked) {
+    verhalten.takt(jetzt);
+  }
 
   if (jetzt - letzteAnzeige >= ANZEIGE_MS) {
     letzteAnzeige = jetzt;
@@ -289,6 +357,7 @@ el('notaus').addEventListener('click', async () => {
   } else {
     antrieb.notAus();
     el('autopilot').checked = false;
+    el('folgen').checked = false;
   }
   dauersendenAus();
   handrahmen = leererRahmen();
@@ -307,6 +376,64 @@ for (const knopf of document.querySelectorAll('[data-ereignis]')) {
   });
 }
 
+// --- Knoepfe: Augen --------------------------------------------------------
+
+auge.onBefund = (befund) => {
+  letzterBefund = befund;
+  zeichneSicht(befund);
+};
+
+auge.onZustand = (zustand, text) => {
+  el('sichtLeer').hidden = zustand === 'laeuft';
+  el('sichtLeer').textContent = zustand === 'fehler' ? `Auge gestört: ${text}` : 'Kamera aus';
+  el('kamera').textContent = auge.laeuft ? 'Kamera ausschalten' : 'Kamera einschalten';
+  el('folgen').disabled = !auge.laeuft;
+  if (!auge.laeuft) {
+    el('folgen').checked = false;
+    letzterBefund = null;
+    folgen.zuruecksetzen();
+  }
+  if (text) protokolliere(`Auge: ${zustand} — ${text}`);
+};
+
+el('kamera').addEventListener('click', async () => {
+  if (auge.laeuft) {
+    await auge.stoppe();
+    return;
+  }
+  el('kamera').disabled = true;
+  try {
+    await auge.starte(el('video'));
+  } catch (fehler) {
+    const text = String(fehler.message ?? fehler);
+    el('sichtLeer').hidden = false;
+    el('sichtLeer').textContent = `Kamera nicht möglich: ${text}`;
+    protokolliere(`Kamera fehlgeschlagen: ${text}`);
+  } finally {
+    el('kamera').disabled = false;
+  }
+});
+
+el('sichtSpiegeln').addEventListener('click', () => {
+  gespiegelt = !gespiegelt;
+  el('video').style.transform = gespiegelt ? 'scaleX(-1)' : '';
+  el('sichtSpiegeln').textContent = `Ansicht: ${gespiegelt ? 'gespiegelt' : 'normal'}`;
+});
+
+el('folgen').addEventListener('change', () => {
+  if (el('folgen').checked) {
+    el('autopilot').checked = false;
+    folgen.zuruecksetzen();
+    if (antrieb.gesperrt) antrieb.entsperre();
+  } else {
+    antrieb.halt();
+  }
+});
+
+el('autopilot').addEventListener('change', () => {
+  if (el('autopilot').checked) el('folgen').checked = false;
+});
+
 // --- Knoepfe: Labor --------------------------------------------------------
 
 el('lesen').addEventListener('click', leseWerte);
@@ -318,9 +445,10 @@ el('nullen').addEventListener('click', async () => {
   if (geraet.verbunden) await geraet.stopp();
 });
 
-/** Rohbefehle gehen am Verhalten vorbei, also Eigenleben abschalten. */
+/** Rohbefehle gehen am Verhalten vorbei, also alle Automatik abschalten. */
 function ohneEigenleben(wirkung) {
   el('autopilot').checked = false;
+  el('folgen').checked = false;
   if (antrieb.gesperrt) antrieb.entsperre();
   return wirkung();
 }
@@ -512,6 +640,11 @@ el('dauersenden').addEventListener('change', () => {
 if (!bluetoothVerfuegbar()) {
   el('btHinweis').hidden = false;
   el('verbinden').disabled = true;
+}
+
+if (!kameraVerfuegbar()) {
+  el('kamera').disabled = true;
+  el('sichtLeer').textContent = 'Dieser Browser gibt keine Kamera her.';
 }
 
 el('belegterRahmenHex').textContent = hex(TESTRAHMEN_VORWAERTS);

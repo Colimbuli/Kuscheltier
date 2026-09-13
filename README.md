@@ -19,7 +19,9 @@ Chrome fuer Android ueber **Web Bluetooth** direkt mit dem Roboter reden laesst.
 | Uebersetzung Absicht -> Stellbytes | fertig, gegen die dokumentierten Rahmen geprueft |
 | Fahren, Greifen, Toene am echten Geraet | laeuft — alle drei Motoren und alle Toene |
 | Sensoren als Wahrnehmung (Taster, Hindernis) | verdrahtet, am Geraet ungeprueft |
-| Gesicht, Sprache | noch nicht angefangen |
+| Kamera und Gesichtserkennung | fertig, **Tempo am Geraet noch nicht gemessen** |
+| Dem Menschen nachfahren | fertig, am Geraet ungeprueft |
+| Personen unterscheiden, Sprachbefehle, Gesicht auf dem Display | noch nicht angefangen |
 
 Die Kette steht vollstaendig und ist am Geraet gefahren: Beduerfnis → Stimmung →
 Handlung → Motorbefehl → Bluetooth. Der Roboter hat drei Motoren zu je `[Befehl, Kraft, Dauer]`, zwei
@@ -65,6 +67,8 @@ src/antrieb_sim.js       ... als Protokoll auf dem Bildschirm
 src/triebe.js          Energie, Sattheit, Zuwendung, Beschaeftigung
 src/gemuet.js          Triebe -> Stimmung
 src/verhalten.js       Stimmung -> Handlung -> Stellbefehle
+src/auge.js            Kamera und Gesichtserkennung, im Browser gerechnet
+src/folgen.js          Gesichtsbefund -> Fahrabsicht. Reine Regelung.
 src/speicher.js        Zustand ueberlebt das Schliessen der Seite
 src/app.js             Verdrahtung, Uhr, Anzeige
 ```
@@ -109,13 +113,41 @@ Drei Sicherungen, unabhaengig voneinander:
 3. **Der Not-Aus.** Bremst alle Motoren, schaltet den Ton ab und nimmt keine
    Befehle mehr an, bis er wieder entsperrt wird.
 
+## Sehen und Folgen
+
+Die Gesichtserkennung laeuft als WebAssembly im Browser — **kein Bild verlaesst
+das Geraet.** Programmteil und Modell werden beim ersten Mal aus dem Netz
+geladen (jsDelivr und Googles Modellspeicher) und liegen danach im
+Browser-Zwischenspeicher.
+
+Im Reiter *Tier* steht die Karte *Augen*: Kamerabild, ein Rahmen um das
+gefundene Gesicht, die Mittellinie, auf die ausgerichtet wird, und darunter die
+Messwerte — Bilder je Sekunde, Rechenzeit je Erkennung, Ablage und Groesse des
+Gesichts. **Diese Zahlen sind der eigentliche Zweck des ersten Schritts:** ist
+das Tempo zu niedrig, taugt das Folgen nichts, und das soll man sehen, bevor
+Verhalten darauf steht.
+
+Der Schalter *Folgen* haelt das groesste Gesicht im Bild mittig und auf Abstand.
+Eine Totzone um die Mitte verhindert das Pendeln, ein kurz verlorenes Gesicht
+wird abgewartet statt sofort gesucht, und nach einigen Sekunden ohne Sicht gibt
+das Folgen auf, statt endlos im Kreis zu drehen.
+
+*Folgen* und *Eigenleben* schliessen einander aus — es kann immer nur eines von
+beidem fahren.
+
+Das Handy muss dafuer **am Roboter montiert** sein, Kamera nach vorn. Der
+Knopf *Ansicht* spiegelt nur die Anzeige, nie die Steuerung.
+
 ## Naechste Schritte
 
 1. Drehsinn klaeren und Kraftstufen am echten Modell nachziehen
-2. Nachbessern, was sich dabei als unpassend erweist — die Fahrdauern im
-   Repertoire sind am Schreibtisch geschaetzt, nicht am Teppich
-3. Gesicht: Augen auf dem Display, Blick und Blinzeln an die Stimmung gekoppelt
-4. Sprache — erst danach entscheiden, ob ein Sprachmodell auf dem Geraet Sinn ergibt
+2. Das Tempo der Gesichtserkennung am Geraet messen, dann das Folgen abstimmen
+3. Nachbessern, was sich dabei als unpassend erweist — die Fahrdauern im
+   Repertoire und die Regelwerte des Folgens sind am Schreibtisch geschaetzt
+4. Orte ueber gedruckte Marker: "fahr zur Tuer" ohne Karte und ohne Odometrie
+5. Personen unterscheiden und wiedererkennen
+6. Befehle, zunaechst ueber Knoepfe; Sprache erst danach — und erst dort stellt
+   sich die Frage nach einer nativen App
 
 ## Fremdes Material
 
