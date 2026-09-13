@@ -22,6 +22,7 @@ Chrome fuer Android ueber **Web Bluetooth** direkt mit dem Roboter reden laesst.
 | Kamera und Gesichtserkennung | fertig, **Tempo am Geraet noch nicht gemessen** |
 | Dem Menschen nachfahren | fertig, am Geraet ungeprueft |
 | Personen unterscheiden, Sprachbefehle, Gesicht auf dem Display | noch nicht angefangen |
+| Zweiter Antrieb: Mould-King-Akkubox | Rahmen geklaert und geprueft, Stellbytes offen |
 
 Die Kette steht vollstaendig und ist am Geraet gefahren: Beduerfnis → Stimmung →
 Handlung → Motorbefehl → Bluetooth. Der Roboter hat drei Motoren zu je `[Befehl, Kraft, Dauer]`, zwei
@@ -69,6 +70,9 @@ src/gemuet.js          Triebe -> Stimmung
 src/verhalten.js       Stimmung -> Handlung -> Stellbefehle
 src/auge.js            Kamera und Gesichtserkennung, im Browser gerechnet
 src/folgen.js          Gesichtsbefund -> Fahrabsicht. Reine Regelung.
+src/mouldking.js       Funkrahmen der zweiten Antriebsart. Reine Funktionen.
+werkzeug/telegramm.mjs   erzeugt Telegramme zum Abtippen in nRF Connect
+werkzeug/snoop-lesen.mjs entschluesselt einen HCI-Mitschnitt
 src/speicher.js        Zustand ueberlebt das Schliessen der Seite
 src/app.js             Verdrahtung, Uhr, Anzeige
 ```
@@ -149,16 +153,34 @@ beidem fahren.
 Das Handy muss dafuer **am Roboter montiert** sein, Kamera nach vorn. Der
 Knopf *Ansicht* spiegelt nur die Anzeige, nie die Steuerung.
 
+## Der zweite Antrieb
+
+Neben dem bisherigen Roboter soll eine **Mould-King-Akkubox** ansteuerbar werden.
+Die laesst sich nicht verbinden — sie lauscht nur auf Advertising-Pakete, und
+**Web Bluetooth darf grundsaetzlich nicht senden.** Fuer diese Box fuehrt kein
+Weg an einer nativen Android-App vorbei.
+
+Der Funkrahmen ist aber bereits geklaert und in `src/mouldking.js` nachgebaut,
+gegen Pruefvektoren aus der Hersteller-App abgesichert. Damit steht das
+schwierigste Stueck, bevor die erste Zeile nativer Code geschrieben ist.
+Einzelheiten und der offene Rest: [doku/protokoll-mouldking.md](doku/protokoll-mouldking.md).
+
 ## Naechste Schritte
 
 1. Drehsinn klaeren und Kraftstufen am echten Modell nachziehen
 2. Das Tempo der Gesichtserkennung am Geraet messen, dann das Folgen abstimmen
 3. Nachbessern, was sich dabei als unpassend erweist — die Fahrdauern im
    Repertoire und die Regelwerte des Folgens sind am Schreibtisch geschaetzt
-4. Orte ueber gedruckte Marker: "fahr zur Tuer" ohne Karte und ohne Odometrie
-5. Personen unterscheiden und wiedererkennen
-6. Befehle, zunaechst ueber Knoepfe; Sprache erst danach — und erst dort stellt
-   sich die Frage nach einer nativen App
+4. Die Stellbytes der Mould-King-Box aus einem HCI-Mitschnitt lesen
+5. Orte ueber gedruckte Marker: "fahr zur Tuer" ohne Karte und ohne Odometrie
+6. Personen unterscheiden und wiedererkennen
+7. Befehle, zunaechst ueber Knoepfe; Sprache erst danach
+
+Drei dieser Punkte — Mould-King-Box, Offline-Sprachbefehle und ein Sprachmodell
+auf dem Geraet — verlangen alle dieselbe Sache: eine native Android-App. Der Kern
+dieses Projekts ist darauf vorbereitet; er kennt weder Browser noch Bluetooth und
+laeuft in einer WebView unveraendert weiter. Ausgetauscht wird nur die
+Geraetekante.
 
 ## Fremdes Material
 
